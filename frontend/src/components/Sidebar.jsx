@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import axios from "axios"
 
-const API_URL = "http://localhost:8502"
+const API_URL = import.meta.env.VITE_API_URL || ""
 
 export default function Sidebar({ sessionId }) {
   const [documents, setDocuments] = useState([])

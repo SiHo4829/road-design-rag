@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:8502"
+const API_URL = import.meta.env.VITE_API_URL || ""
 
 export default function SourceCard({ source, index }) {
   const pdfUrl = `${API_URL}/api/pdf/${encodeURIComponent(source.filename)}#page=${source.page}`

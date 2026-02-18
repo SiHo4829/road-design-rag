@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(PYTHONIOENCODING=utf-8 python:*)",
+      "Bash(curl:*)",
+      "Bash(npm run dev)"
+    ]
+  }
+}

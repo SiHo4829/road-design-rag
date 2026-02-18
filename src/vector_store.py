@@ -1,7 +1,10 @@
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import OllamaEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_upstage import UpstageEmbeddings
 from langchain_community.vectorstores import Chroma
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class VectorStore:
     """텍스트를 벡터로 변환하고 저장하는 클래스"""
@@ -15,17 +18,28 @@ class VectorStore:
         self.collection_name = collection_name
         self.persist_directory = persist_directory
         
-        # Ollama 임베딩 모델 설정 (로컬 실행)
-        self.embeddings = OllamaEmbeddings(
-            model="bge-m3"  # 또는 다른 모델
+        # Upstage Solar 임베딩 (API 기반, 한국어 특화)
+        self.embeddings = UpstageEmbeddings(
+            model="solar-embedding-1-large",
+            api_key=os.getenv("UPSTAGE_API_KEY")
         )
         
-        # 텍스트 분할기 설정
+        # 텍스트 분할기 설정 (한국어 기술 문서 최적화)
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,        # 청크 크기 (문자 수)
-            chunk_overlap=100,      # 청크 간 겹치는 부분
+            chunk_size=500,         # 한국어 문서에 맞게 축소 (정보 밀도가 높으므로 작은 청크가 검색 정밀도 향상)
+            chunk_overlap=150,      # 30% 오버랩으로 문맥 손실 방지
             length_function=len,
-            separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""]
+            separators=[
+                "\n\n",             # 문단 구분
+                "\n",               # 줄바꿈
+                "다.\n", "다. ",    # 한국어 평서문 종결
+                "요.\n", "요. ",    # 한국어 존댓말 종결
+                "음.\n", "음. ",    # 한국어 명사형 종결
+                ".\n", ". ",        # 일반 문장 종결
+                ", ",               # 쉼표
+                " ",                # 공백
+                ""                  # 최후 수단
+            ]
         )
         
         self.vectorstore = None
@@ -53,7 +67,7 @@ class VectorStore:
             # 텍스트를 청크로 분할
             chunks = self.text_splitter.split_text(page_text)
             
-            # 각 청크에 메타데이터 추가
+            # 각 청크에 메타데이터 + 컨텍스트 헤더 추가
             for chunk_idx, chunk in enumerate(chunks):
                 metadata = {
                     'source': pdf_info['filename'],
@@ -61,8 +75,10 @@ class VectorStore:
                     'chunk': chunk_idx,
                     'total_pages': pdf_info['total_pages']
                 }
+                # 컨텍스트 헤더: 임베딩 시 출처 정보를 포함하여 검색 정확도 향상
+                header = f"[{pdf_info['filename']} p.{page_num}] "
                 chunks_with_metadata.append({
-                    'text': chunk,
+                    'text': header + chunk,
                     'metadata': metadata
                 })
         
