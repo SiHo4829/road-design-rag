@@ -61,7 +61,7 @@ export default function ChatBox({ sessionId }) {
     <div className="flex-1 flex flex-col h-screen bg-gray-50 min-w-0">
       {/* 헤더 */}
       <div className="px-6 py-4 bg-white border-b border-gray-200">
-        <h2 className="text-base font-semibold text-gray-900">도로설계 기준 AI 챗봇</h2>
+        <h2 className="text-base font-semibold text-gray-900">Roadspec</h2>
         <p className="text-xs text-gray-400 mt-0.5">도로설계 기준 문서를 기반으로 질문에 답변합니다</p>
       </div>
 

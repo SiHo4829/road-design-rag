@@ -44,7 +44,7 @@ export default function Sidebar({ sessionId }) {
           ☰
         </button>
         <div className="text-slate-500 text-xs mt-2" style={{ writingMode: "vertical-rl" }}>
-          도로설계 AI
+          Roadspec
         </div>
       </div>
     )
@@ -55,8 +55,8 @@ export default function Sidebar({ sessionId }) {
       {/* 헤더 */}
       <div className="p-5 flex items-center justify-between border-b border-slate-700">
         <div>
-          <h1 className="text-sm font-bold text-white">도로설계 AI</h1>
-          <p className="text-xs text-slate-400 mt-0.5">기준 문서 기반 챗봇</p>
+          <h1 className="text-sm font-bold text-white">Roadspec</h1>
+          <p className="text-xs text-slate-400 mt-0.5">도로설계 기준 문서 챗봇</p>
         </div>
         <button
           onClick={() => setCollapsed(true)}
