@@ -159,6 +159,11 @@ class VectorStore:
             print(f"✗ 벡터 DB를 찾을 수 없습니다: {self.persist_directory}")
             return None
     
+    def delete_by_source(self, filename: str):
+        """특정 파일의 모든 청크 삭제"""
+        self.vectorstore._collection.delete(where={"source": filename})
+        print(f"✓ {filename} 청크 삭제 완료")
+
     def search(self, query, k=3):
         """
         질의와 유사한 문서 검색

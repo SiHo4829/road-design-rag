@@ -26,6 +26,10 @@ export default function AdminPage() {
   const [uploadMsg, setUploadMsg] = useState("")
   const fileRef = useRef(null)
 
+  // 문서 목록
+  const [documents, setDocuments] = useState([])
+  const [deleteMsg, setDeleteMsg] = useState("")
+
   // DB 재구축
   const [rebuildMsg, setRebuildMsg] = useState("")
   const [rebuildRunning, setRebuildRunning] = useState(false)
@@ -63,9 +67,32 @@ export default function AdminPage() {
     setSessions(data.sessions || [])
   }
 
+  const fetchDocuments = async () => {
+    const res = await fetch(`${API_URL}/api/documents`)
+    const data = await res.json()
+    setDocuments(data.documents || [])
+  }
+
+  const deleteDocument = async (filename) => {
+    if (!window.confirm(`"${filename}"을 삭제하시겠습니까?\n벡터 DB에서도 제거됩니다.`)) return
+    setDeleteMsg("")
+    try {
+      const res = await fetch(`${API_URL}/api/admin/documents/${encodeURIComponent(filename)}`, {
+        method: "DELETE",
+        headers,
+      })
+      const data = await res.json()
+      setDeleteMsg(res.ok ? `✓ ${data.message}` : `✗ ${data.detail}`)
+      if (res.ok) fetchDocuments()
+    } catch {
+      setDeleteMsg("✗ 삭제 실패")
+    }
+  }
+
   useEffect(() => {
     if (!authed) return
     if (tab === "stats") fetchStats()
+    if (tab === "docs") fetchDocuments()
     if (tab === "logs") fetchSessions()
   }, [tab, authed])
 
@@ -221,6 +248,39 @@ export default function AdminPage() {
               {uploadMsg && (
                 <p className={`text-xs mt-3 ${uploadMsg.startsWith("✓") ? "text-green-600" : "text-red-500"}`}>
                   {uploadMsg}
+                </p>
+              )}
+            </div>
+
+            {/* 문서 목록 */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900">등록된 문서</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">{documents.length}개 문서</p>
+                </div>
+                <button onClick={fetchDocuments} className="text-xs text-gray-400 hover:text-gray-600">새로고침</button>
+              </div>
+              {documents.length > 0 ? (
+                <ul className="space-y-2">
+                  {documents.map(doc => (
+                    <li key={doc} className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 last:border-0">
+                      <span className="text-xs text-gray-700 truncate">{doc}</span>
+                      <button
+                        onClick={() => deleteDocument(doc)}
+                        className="text-xs text-red-400 hover:text-red-600 flex-shrink-0 transition-colors"
+                      >
+                        삭제
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-gray-400">등록된 문서가 없습니다.</p>
+              )}
+              {deleteMsg && (
+                <p className={`text-xs mt-3 ${deleteMsg.startsWith("✓") ? "text-green-600" : "text-red-500"}`}>
+                  {deleteMsg}
                 </p>
               )}
             </div>

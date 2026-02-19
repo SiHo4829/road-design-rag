@@ -138,29 +138,57 @@ class QAEngine:
 
         return context, sources
 
-    def ask_stream(self, question):
+    def _build_messages(self, prompt, history=None):
+        """LLM에 전달할 messages 구성 (히스토리 포함)"""
+        messages = []
+        # 최근 3쌍(6개)만 포함
+        if history:
+            for h in history[-6:]:
+                messages.append({"role": h["role"], "content": h["content"]})
+        messages.append({"role": "user", "content": prompt})
+        return messages
+
+    def _rewrite_query(self, question: str) -> str:
+        """검색 최적화를 위한 쿼리 재작성 (LLM 기반)"""
+        response = self.client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content":
+                f"다음 질문을 도로설계 기준 문서 검색에 최적화된 키워드 중심 검색어로 변환하세요. "
+                f"변환된 검색어만 출력하세요.\n\n질문: {question}"
+            }],
+            temperature=0,
+            max_tokens=80,
+        )
+        rewritten = response.choices[0].message.content.strip()
+        print(f"쿼리 재작성: {question!r} → {rewritten!r}")
+        return rewritten
+
+    def ask_stream(self, question, history=None):
         """스트리밍 답변 생성 (stream 객체, sources 반환)"""
-        results = self.hybrid_search(question, k=15)
+        search_query = self._rewrite_query(question)
+        results = self.hybrid_search(search_query, k=15)
         context, sources = self._build_context(results)
         prompt = self.prompt_template.format(context=context, question=question)
+        messages = self._build_messages(prompt, history)
 
         stream = self.client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             temperature=0.1,
             max_tokens=1024,
             stream=True,
         )
         return stream, sources
 
-    def ask(self, question, logger=None):
+    def ask(self, question, logger=None, history=None):
         results = self.hybrid_search(question, k=15)
         context, sources = self._build_context(results)
         prompt = self.prompt_template.format(context=context, question=question)
+        messages = self._build_messages(prompt, history)
 
         response = self.client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             temperature=0.1,
             max_tokens=1024,
         )

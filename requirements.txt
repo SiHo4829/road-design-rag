@@ -12,3 +12,5 @@ groq
 fastapi
 uvicorn[standard]
 python-multipart
+slowapi
+apscheduler

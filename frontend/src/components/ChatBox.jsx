@@ -20,22 +20,25 @@ export default function ChatBox({ sessionId }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const sendMessage = async (question) => {
+  const sendMessage = async (question, overrideHistory) => {
     const q = (question || input).trim()
     if (!q || loading) return
     setInput("")
 
-    setMessages(prev => [...prev, { role: "user", content: q }])
-    setLoading(true)
+    // overrideHistory가 없으면 현재 messages에서 히스토리 캡처
+    const history = overrideHistory ?? messages.map(m => ({ role: m.role, content: m.content }))
 
-    // 빈 AI 메시지 먼저 추가 (스트리밍으로 채워짐)
+    if (overrideHistory === undefined) {
+      setMessages(prev => [...prev, { role: "user", content: q }])
+    }
     setMessages(prev => [...prev, { role: "assistant", content: "", sources: [] }])
+    setLoading(true)
 
     try {
       const response = await fetch(`${API_URL}/api/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, session_id: sessionId })
+        body: JSON.stringify({ question: q, session_id: sessionId, history })
       })
 
       const reader = response.body.getReader()
@@ -93,6 +96,16 @@ export default function ChatBox({ sessionId }) {
     }
   }
 
+  const regenerate = async () => {
+    const lastUserIdx = [...messages].map(m => m.role).lastIndexOf("user")
+    if (lastUserIdx < 0) return
+    const lastQ = messages[lastUserIdx].content
+    const historyBefore = messages.slice(0, lastUserIdx).map(m => ({ role: m.role, content: m.content }))
+    // 마지막 assistant 응답 제거, user 메시지는 유지
+    setMessages(prev => prev.slice(0, lastUserIdx + 1))
+    await sendMessage(lastQ, historyBefore)
+  }
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
@@ -100,12 +113,24 @@ export default function ChatBox({ sessionId }) {
     }
   }
 
+  const canRegenerate = !loading && messages.length > 0 && messages[messages.length - 1].role === "assistant"
+
   return (
     <div className="flex-1 flex flex-col h-screen bg-gray-50 min-w-0">
       {/* 헤더 */}
-      <div className="px-6 py-4 bg-white border-b border-gray-200">
-        <h2 className="text-base font-semibold text-gray-900">Roadspec</h2>
-        <p className="text-xs text-gray-400 mt-0.5">도로설계 기준 문서를 기반으로 질문에 답변합니다</p>
+      <div className="px-6 py-4 bg-white border-b border-gray-200 flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Roadspec</h2>
+          <p className="text-xs text-gray-400 mt-0.5">도로설계 기준 문서를 기반으로 질문에 답변합니다</p>
+        </div>
+        {messages.length > 0 && (
+          <button
+            onClick={() => setMessages([])}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            새 대화
+          </button>
+        )}
       </div>
 
       {/* 메시지 영역 */}
@@ -156,18 +181,36 @@ export default function ChatBox({ sessionId }) {
         <div ref={bottomRef} />
       </div>
 
+      {/* 재생성 버튼 */}
+      {canRegenerate && (
+        <div className="px-6 pb-2 flex justify-center">
+          <button
+            onClick={regenerate}
+            className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:bg-gray-50 transition-colors"
+          >
+            ↺ 재생성
+          </button>
+        </div>
+      )}
+
       {/* 입력 영역 */}
       <div className="px-6 py-4 bg-white border-t border-gray-200">
         <div className="flex gap-2 items-end">
-          <textarea
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="도로설계 기준에 대해 질문하세요... (Enter 전송, Shift+Enter 줄바꿈)"
-            className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-gray-50"
-            rows={1}
-            disabled={loading}
-          />
+          <div className="flex-1 relative">
+            <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="도로설계 기준에 대해 질문하세요... (Enter 전송, Shift+Enter 줄바꿈)"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-gray-50 pb-6"
+              rows={1}
+              maxLength={500}
+              disabled={loading}
+            />
+            <span className={`absolute bottom-2 right-3 text-xs ${input.length >= 450 ? "text-orange-400" : "text-gray-300"}`}>
+              {input.length}/500
+            </span>
+          </div>
           <button
             onClick={() => sendMessage()}
             disabled={loading || !input.trim()}

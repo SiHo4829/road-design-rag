@@ -40,7 +40,15 @@ const markdownComponents = {
 export default function MessageBubble({ message }) {
   const isUser = message.role === "user"
   const [showSources, setShowSources] = useState(false)
+  const [copied, setCopied] = useState(false)
   const hasSources = message.sources && message.sources.length > 0
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.content).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-5`}>
@@ -68,24 +76,34 @@ export default function MessageBubble({ message }) {
               )}
             </div>
 
-            {/* 출처 */}
-            {hasSources && (
-              <div className="mt-2">
+            {/* AI 메시지 액션 버튼 */}
+            {!isUser && message.content && (
+              <div className="flex items-center gap-3 mt-1.5">
                 <button
-                  onClick={() => setShowSources(!showSources)}
-                  className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                  onClick={handleCopy}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  <span className="text-xs">{showSources ? "▼" : "▶"}</span>
-                  <span>출처 {message.sources.length}개 {showSources ? "접기" : "펼치기"}</span>
+                  {copied ? "✓ 복사됨" : "복사"}
                 </button>
 
-                {showSources && (
-                  <div className="mt-1.5 space-y-1">
-                    {message.sources.map((source, i) => (
-                      <SourceCard key={i} source={source} index={i + 1} />
-                    ))}
-                  </div>
+                {/* 출처 */}
+                {hasSources && (
+                  <button
+                    onClick={() => setShowSources(!showSources)}
+                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <span>{showSources ? "▼" : "▶"}</span>
+                    <span>출처 {message.sources.length}개 {showSources ? "접기" : "펼치기"}</span>
+                  </button>
                 )}
+              </div>
+            )}
+
+            {showSources && (
+              <div className="mt-1.5 space-y-1">
+                {message.sources.map((source, i) => (
+                  <SourceCard key={i} source={source} index={i + 1} />
+                ))}
               </div>
             )}
           </div>

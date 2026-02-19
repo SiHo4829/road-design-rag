@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class Logger:
     """질문/답변 로그 기록 클래스"""
@@ -123,3 +123,30 @@ class Logger:
                     pass
 
         return {"total": total, "today": today_count, "sessions": len(sessions)}
+
+    @staticmethod
+    def cleanup_old_logs(log_dir="logs", days=30):
+        """N일 이상된 로그 파일 삭제"""
+        cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        deleted = 0
+
+        if not os.path.exists(log_dir):
+            return deleted
+
+        for session in os.listdir(log_dir):
+            session_dir = os.path.join(log_dir, session)
+            if not os.path.isdir(session_dir):
+                continue
+            for filename in os.listdir(session_dir):
+                if not (filename.startswith("log_") and filename.endswith(".json")):
+                    continue
+                date_str = filename.replace("log_", "").replace(".json", "")
+                if date_str < cutoff:
+                    os.remove(os.path.join(session_dir, filename))
+                    deleted += 1
+            # 빈 세션 폴더 제거
+            if not os.listdir(session_dir):
+                os.rmdir(session_dir)
+
+        print(f"✓ 오래된 로그 {deleted}개 삭제 완료")
+        return deleted
