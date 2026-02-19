@@ -15,7 +15,12 @@ const EXAMPLE_QUESTIONS = [
 ]
 
 export default function ChatBox({ sessionId }) {
-  const [messages, setMessages] = useState([])
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`roadspec_messages_${sessionId}`)
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
@@ -23,6 +28,12 @@ export default function ChatBox({ sessionId }) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`roadspec_messages_${sessionId}`, JSON.stringify(messages))
+    } catch {}
+  }, [messages, sessionId])
 
   const sendMessage = async (question, overrideHistory) => {
     const q = (question || input).trim()
@@ -131,7 +142,10 @@ export default function ChatBox({ sessionId }) {
           </div>
         </div>
         {messages.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => setMessages([])}>
+          <Button variant="ghost" size="sm" onClick={() => {
+            setMessages([])
+            localStorage.removeItem(`roadspec_messages_${sessionId}`)
+          }}>
             <Plus className="h-3.5 w-3.5 mr-1" />
             새 대화
           </Button>
