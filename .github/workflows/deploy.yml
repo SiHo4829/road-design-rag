@@ -16,6 +16,7 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           script: |
             cd ~/road-design-rag
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             docker compose build
             docker compose up -d --remove-orphans
