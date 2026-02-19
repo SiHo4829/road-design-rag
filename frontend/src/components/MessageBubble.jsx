@@ -47,10 +47,25 @@ export default function MessageBubble({ message }) {
   const hasSources = message.sources && message.sources.length > 0
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(message.content).then(() => {
+    const text = message.content
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
+    } else {
+      // HTTP 환경 fallback
+      const el = document.createElement("textarea")
+      el.value = text
+      el.style.position = "fixed"
+      el.style.opacity = "0"
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand("copy")
+      document.body.removeChild(el)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    })
+    }
   }
 
   if (isUser) {

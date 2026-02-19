@@ -171,11 +171,13 @@ export default function ChatBox({ sessionId }) {
           </div>
         ) : (
           <>
-            {messages.map((msg, i) => (
-              <MessageBubble key={i} message={msg} />
-            ))}
+            {messages.map((msg, i) => {
+              // 로딩 중인 빈 assistant 말풍선은 로딩 점으로 대체
+              if (msg.role === "assistant" && msg.content === "" && loading && i === messages.length - 1) return null
+              return <MessageBubble key={i} message={msg} />
+            })}
 
-            {loading && (
+            {loading && messages[messages.length - 1]?.content === "" && (
               <div className="flex justify-start mb-5">
                 <div className="flex items-start gap-3">
                   <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0 mt-0.5">
