@@ -1,13 +1,27 @@
 import { useState, useEffect, useRef } from "react"
+import {
+  Route, MessageSquare, TrendingUp, Users, Upload, FileText,
+  Trash2, RefreshCw, Loader2, LogIn, AlertCircle, ArrowLeft, RotateCcw
+} from "lucide-react"
+import { Button } from "./ui/button"
+import { Separator } from "./ui/separator"
+import { cn } from "../lib/utils"
 
 const API_URL = import.meta.env.VITE_API_URL || ""
 
-function StatCard({ label, value, sub }) {
+function StatCard({ label, value, sub, icon: Icon }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-      <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{label}</p>
-      <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+    <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
+      <div className="flex items-start justify-between mb-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
+        {Icon && (
+          <div className="h-7 w-7 rounded-lg bg-accent flex items-center justify-center">
+            <Icon className="h-3.5 w-3.5 text-primary" />
+          </div>
+        )}
+      </div>
+      <p className="text-3xl font-bold text-foreground tabular-nums">{value ?? "-"}</p>
+      {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
     </div>
   )
 }
@@ -18,23 +32,18 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState("")
   const [tab, setTab] = useState("stats")
 
-  // 통계
   const [stats, setStats] = useState(null)
 
-  // PDF 업로드
   const [uploading, setUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState("")
   const fileRef = useRef(null)
 
-  // 문서 목록
   const [documents, setDocuments] = useState([])
   const [deleteMsg, setDeleteMsg] = useState("")
 
-  // DB 재구축
   const [rebuildMsg, setRebuildMsg] = useState("")
   const [rebuildRunning, setRebuildRunning] = useState(false)
 
-  // 로그 조회
   const [sessions, setSessions] = useState([])
   const [selectedSession, setSelectedSession] = useState("")
   const [selectedDate, setSelectedDate] = useState("")
@@ -78,8 +87,7 @@ export default function AdminPage() {
     setDeleteMsg("")
     try {
       const res = await fetch(`${API_URL}/api/admin/documents/${encodeURIComponent(filename)}`, {
-        method: "DELETE",
-        headers,
+        method: "DELETE", headers,
       })
       const data = await res.json()
       setDeleteMsg(res.ok ? `✓ ${data.message}` : `✗ ${data.detail}`)
@@ -157,25 +165,37 @@ export default function AdminPage() {
   // 로그인 화면
   if (!authed) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-80">
-          <h1 className="text-lg font-bold text-gray-900 mb-1">Roadspec 관리자</h1>
-          <p className="text-xs text-gray-400 mb-6">관리자 비밀번호를 입력하세요</p>
+      <div className="min-h-screen bg-muted/40 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-2xl shadow-sm p-8 w-[360px]">
+          <div className="flex items-center gap-2.5 mb-5">
+            <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center">
+              <Route className="h-4.5 w-4.5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-base font-semibold text-foreground">Roadspec</h1>
+              <p className="text-xs text-muted-foreground">관리자 대시보드</p>
+            </div>
+          </div>
+          <Separator className="mb-5" />
+          <p className="text-xs text-muted-foreground mb-3">관리자 비밀번호를 입력하세요</p>
           <input
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
             onKeyDown={e => e.key === "Enter" && login()}
             placeholder="비밀번호"
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 mb-3"
+            className="w-full border border-input rounded-xl px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring mb-3"
           />
-          {authError && <p className="text-xs text-red-500 mb-3">{authError}</p>}
-          <button
-            onClick={login}
-            className="w-full bg-blue-500 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-blue-600 transition-colors"
-          >
+          {authError && (
+            <p className="text-xs text-destructive mb-3 flex items-center gap-1.5">
+              <AlertCircle className="h-3 w-3" />
+              {authError}
+            </p>
+          )}
+          <Button className="w-full" onClick={login}>
+            <LogIn className="h-4 w-4 mr-2" />
             로그인
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -188,25 +208,40 @@ export default function AdminPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-muted/30">
       {/* 헤더 */}
-      <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-base font-bold text-gray-900">Roadspec 관리자</h1>
-          <p className="text-xs text-gray-400 mt-0.5">시스템 관리 및 모니터링</p>
+      <header className="bg-background border-b border-border px-8 py-3.5 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
+            <Route className="h-3.5 w-3.5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-sm font-semibold text-foreground">Roadspec 관리자</h1>
+            <p className="text-[11px] text-muted-foreground">시스템 관리 및 모니터링</p>
+          </div>
         </div>
-        <a href="/" className="text-xs text-gray-400 hover:text-gray-600">← 챗봇으로 돌아가기</a>
-      </div>
+        <a
+          href="/"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          챗봇으로 돌아가기
+        </a>
+      </header>
 
-      {/* 탭 */}
       <div className="px-8 pt-6">
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit mb-6">
+        {/* 탭 */}
+        <div className="flex gap-1 bg-muted rounded-xl p-1 w-fit mb-6">
           {tabs.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
-                ${tab === t.id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              className={cn(
+                "px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
+                tab === t.id
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
             >
               {t.label}
             </button>
@@ -215,89 +250,105 @@ export default function AdminPage() {
 
         {/* 통계 탭 */}
         {tab === "stats" && stats && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-3 gap-4">
-              <StatCard label="전체 질문 수" value={stats.total} sub="누적 총계" />
-              <StatCard label="오늘 질문 수" value={stats.today} sub="오늘 기준" />
-              <StatCard label="사용자 수" value={stats.sessions} sub="고유 세션" />
+          <div className="space-y-5">
+            <div className="grid grid-cols-3 gap-4 max-w-2xl">
+              <StatCard label="전체 질문 수" value={stats.total} sub="누적 총계" icon={MessageSquare} />
+              <StatCard label="오늘 질문 수" value={stats.today} sub="오늘 기준" icon={TrendingUp} />
+              <StatCard label="사용자 수" value={stats.sessions} sub="고유 세션" icon={Users} />
             </div>
-            <button
-              onClick={fetchStats}
-              className="text-xs text-gray-400 hover:text-gray-600"
-            >
+            <Button variant="ghost" size="sm" onClick={fetchStats} className="text-muted-foreground">
+              <RotateCcw className="h-3 w-3 mr-1.5" />
               새로고침
-            </button>
+            </Button>
           </div>
         )}
 
         {/* 문서 관리 탭 */}
         {tab === "docs" && (
-          <div className="space-y-6 max-w-lg">
+          <div className="space-y-5 max-w-lg">
             {/* PDF 업로드 */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h2 className="text-sm font-semibold text-gray-900 mb-1">PDF 업로드</h2>
-              <p className="text-xs text-gray-400 mb-4">새 문서를 업로드하면 자동으로 인덱싱됩니다</p>
+            <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
+              <h2 className="text-sm font-semibold text-foreground mb-1">PDF 업로드</h2>
+              <p className="text-xs text-muted-foreground mb-4">새 문서를 업로드하면 자동으로 인덱싱됩니다</p>
               <input ref={fileRef} type="file" accept=".pdf" onChange={uploadPDF} className="hidden" />
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="w-full border-2 border-dashed border-gray-200 rounded-xl py-6 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors disabled:opacity-50"
+                className={cn(
+                  "w-full border-2 border-dashed border-border rounded-xl py-7",
+                  "flex flex-col items-center gap-2.5",
+                  "text-sm text-muted-foreground",
+                  "hover:border-primary hover:bg-accent hover:text-primary",
+                  "transition-all duration-150 disabled:opacity-50"
+                )}
               >
-                {uploading ? "업로드 중..." : "📄 클릭하여 PDF 선택"}
+                <Upload className="h-5 w-5" />
+                {uploading ? "업로드 중..." : "클릭하여 PDF 선택"}
               </button>
               {uploadMsg && (
-                <p className={`text-xs mt-3 ${uploadMsg.startsWith("✓") ? "text-green-600" : "text-red-500"}`}>
+                <p className={cn(
+                  "text-xs mt-3",
+                  uploadMsg.startsWith("✓") ? "text-green-600" : "text-destructive"
+                )}>
                   {uploadMsg}
                 </p>
               )}
             </div>
 
             {/* 문서 목록 */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-900">등록된 문서</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">{documents.length}개 문서</p>
+                  <h2 className="text-sm font-semibold text-foreground">등록된 문서</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">{documents.length}개 문서</p>
                 </div>
-                <button onClick={fetchDocuments} className="text-xs text-gray-400 hover:text-gray-600">새로고침</button>
+                <Button variant="ghost" size="sm" onClick={fetchDocuments} className="text-muted-foreground h-7">
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  새로고침
+                </Button>
               </div>
               {documents.length > 0 ? (
-                <ul className="space-y-2">
+                <ul>
                   {documents.map(doc => (
-                    <li key={doc} className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 last:border-0">
-                      <span className="text-xs text-gray-700 truncate">{doc}</span>
-                      <button
+                    <li key={doc} className="flex items-center gap-3 py-2.5 border-b border-border last:border-0">
+                      <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="flex-1 text-xs text-foreground truncate">{doc}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => deleteDocument(doc)}
-                        className="text-xs text-red-400 hover:text-red-600 flex-shrink-0 transition-colors"
+                        className="h-6 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
                       >
-                        삭제
-                      </button>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-xs text-gray-400">등록된 문서가 없습니다.</p>
+                <p className="text-xs text-muted-foreground">등록된 문서가 없습니다.</p>
               )}
               {deleteMsg && (
-                <p className={`text-xs mt-3 ${deleteMsg.startsWith("✓") ? "text-green-600" : "text-red-500"}`}>
+                <p className={cn(
+                  "text-xs mt-3",
+                  deleteMsg.startsWith("✓") ? "text-green-600" : "text-destructive"
+                )}>
                   {deleteMsg}
                 </p>
               )}
             </div>
 
             {/* DB 재구축 */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h2 className="text-sm font-semibold text-gray-900 mb-1">벡터 DB 재구축</h2>
-              <p className="text-xs text-gray-400 mb-4">모든 문서를 다시 임베딩합니다. 수분 소요됩니다.</p>
-              <button
-                onClick={startRebuild}
-                disabled={rebuildRunning}
-                className="px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-50 transition-colors"
-              >
-                {rebuildRunning ? "재구축 중..." : "재구축 시작"}
-              </button>
+            <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
+              <h2 className="text-sm font-semibold text-foreground mb-1">벡터 DB 재구축</h2>
+              <p className="text-xs text-muted-foreground mb-4">모든 문서를 다시 임베딩합니다. 수분 소요됩니다.</p>
+              <Button variant="destructive" onClick={startRebuild} disabled={rebuildRunning}>
+                {rebuildRunning
+                  ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />재구축 중...</>
+                  : <><RefreshCw className="h-4 w-4 mr-2" />재구축 시작</>
+                }
+              </Button>
               {rebuildMsg && (
-                <p className="text-xs text-gray-500 mt-3">{rebuildMsg}</p>
+                <p className="text-xs text-muted-foreground mt-3">{rebuildMsg}</p>
               )}
             </div>
           </div>
@@ -310,7 +361,7 @@ export default function AdminPage() {
               <select
                 value={selectedSession}
                 onChange={e => loadSessionDates(e.target.value)}
-                className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none"
+                className="flex-1 border border-input rounded-xl px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="">세션 선택...</option>
                 {sessions.map(s => (
@@ -323,34 +374,33 @@ export default function AdminPage() {
                 value={selectedDate}
                 onChange={e => setSelectedDate(e.target.value)}
                 disabled={!sessionDates.length}
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none disabled:opacity-50"
+                className="border border-input rounded-xl px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
               >
                 <option value="">날짜 선택...</option>
                 {sessionDates.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
-              <button
+              <Button
                 onClick={loadLogs}
                 disabled={!selectedSession || !selectedDate}
-                className="px-4 py-2 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-600 disabled:opacity-50 transition-colors"
               >
                 조회
-              </button>
+              </Button>
             </div>
 
             {logs.length > 0 && (
               <div className="space-y-3">
                 {logs.map((log, i) => (
-                  <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                    <p className="text-xs text-gray-400 mb-2">{log.timestamp}</p>
-                    <p className="text-sm font-medium text-gray-800">Q. {log.question}</p>
-                    <p className="text-sm text-gray-500 mt-1 line-clamp-3">A. {log.answer}</p>
+                  <div key={i} className="bg-card rounded-xl border border-border p-4 shadow-sm">
+                    <p className="text-[11px] text-muted-foreground mb-2">{log.timestamp}</p>
+                    <p className="text-sm font-medium text-foreground">Q. {log.question}</p>
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-3">A. {log.answer}</p>
                   </div>
                 ))}
               </div>
             )}
 
             {logs.length === 0 && selectedDate && (
-              <p className="text-sm text-gray-400">로그가 없습니다.</p>
+              <p className="text-sm text-muted-foreground">로그가 없습니다.</p>
             )}
           </div>
         )}
