@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react"
-import axios from "axios"
 import MessageBubble from "./MessageBubble"
 
 const API_URL = import.meta.env.VITE_API_URL || ""
@@ -29,22 +28,66 @@ export default function ChatBox({ sessionId }) {
     setMessages(prev => [...prev, { role: "user", content: q }])
     setLoading(true)
 
+    // 빈 AI 메시지 먼저 추가 (스트리밍으로 채워짐)
+    setMessages(prev => [...prev, { role: "assistant", content: "", sources: [] }])
+
     try {
-      const res = await axios.post(`${API_URL}/api/chat`, {
-        question: q,
-        session_id: sessionId
+      const response = await fetch(`${API_URL}/api/chat/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q, session_id: sessionId })
       })
-      setMessages(prev => [...prev, {
-        role: "assistant",
-        content: res.data.answer,
-        sources: res.data.sources
-      }])
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop()
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue
+          const data = line.slice(6)
+          if (data === "[DONE]") break
+
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.type === "token") {
+              setMessages(prev => {
+                const msgs = [...prev]
+                msgs[msgs.length - 1] = {
+                  ...msgs[msgs.length - 1],
+                  content: msgs[msgs.length - 1].content + parsed.content
+                }
+                return msgs
+              })
+            } else if (parsed.type === "sources") {
+              setMessages(prev => {
+                const msgs = [...prev]
+                msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], sources: parsed.sources }
+                return msgs
+              })
+            } else if (parsed.type === "error") {
+              setMessages(prev => {
+                const msgs = [...prev]
+                msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: "오류가 발생했습니다." }
+                return msgs
+              })
+            }
+          } catch {}
+        }
+      }
     } catch {
-      setMessages(prev => [...prev, {
-        role: "assistant",
-        content: "오류가 발생했습니다. 다시 시도해주세요.",
-        sources: []
-      }])
+      setMessages(prev => {
+        const msgs = [...prev]
+        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: "오류가 발생했습니다. 다시 시도해주세요." }
+        return msgs
+      })
     } finally {
       setLoading(false)
     }

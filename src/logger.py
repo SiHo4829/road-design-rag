@@ -85,8 +85,41 @@ class Logger:
     def get_all_log_dates(self):
         """저장된 모든 로그 날짜 반환"""
         dates = []
+        if not os.path.exists(self.log_dir):
+            return dates
         for filename in os.listdir(self.log_dir):
             if filename.startswith("log_") and filename.endswith(".json"):
                 date = filename.replace("log_", "").replace(".json", "")
                 dates.append(date)
         return sorted(dates, reverse=True)
+
+    @staticmethod
+    def get_global_stats(log_dir="logs"):
+        """전체 사용량 통계 (모든 세션 합산)"""
+        today = datetime.now().strftime("%Y-%m-%d")
+        total = 0
+        today_count = 0
+
+        if not os.path.exists(log_dir):
+            return {"total": 0, "today": 0, "sessions": 0}
+
+        sessions = [
+            d for d in os.listdir(log_dir)
+            if os.path.isdir(os.path.join(log_dir, d))
+        ]
+
+        for session in sessions:
+            session_dir = os.path.join(log_dir, session)
+            for filename in os.listdir(session_dir):
+                if not filename.endswith(".json"):
+                    continue
+                try:
+                    with open(os.path.join(session_dir, filename), 'r', encoding='utf-8') as f:
+                        logs = json.load(f)
+                    total += len(logs)
+                    if filename == f"log_{today}.json":
+                        today_count += len(logs)
+                except Exception:
+                    pass
+
+        return {"total": total, "today": today_count, "sessions": len(sessions)}

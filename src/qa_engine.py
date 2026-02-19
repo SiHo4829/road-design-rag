@@ -106,11 +106,8 @@ class QAEngine:
 
         return sorted_results[:k]
 
-    def ask(self, question, logger=None):
-        # 1. 하이브리드 검색
-        results = self.hybrid_search(question, k=15)
-
-        # 2. 컨텍스트 구성 (중복 제거 + 상위 7개)
+    def _build_context(self, results):
+        """하이브리드 검색 결과에서 컨텍스트와 출처 구성"""
         context = ""
         sources = []
         seen_contents = set()
@@ -123,7 +120,6 @@ class QAEngine:
                 content = item.get('content', '')
                 metadata = item.get('metadata', {})
 
-            # 중복 내용 스킵
             content_key = content[:100]
             if content_key in seen_contents:
                 continue
@@ -140,39 +136,40 @@ class QAEngine:
             if len(sources) >= 7:
                 break
 
-        # 3. 프롬프트 생성
-        prompt = self.prompt_template.format(
-            context=context,
-            question=question
-        )
+        return context, sources
 
-        # 4. 답변 생성
+    def ask_stream(self, question):
+        """스트리밍 답변 생성 (stream 객체, sources 반환)"""
+        results = self.hybrid_search(question, k=15)
+        context, sources = self._build_context(results)
+        prompt = self.prompt_template.format(context=context, question=question)
+
+        stream = self.client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=1024,
+            stream=True,
+        )
+        return stream, sources
+
+    def ask(self, question, logger=None):
+        results = self.hybrid_search(question, k=15)
+        context, sources = self._build_context(results)
+        prompt = self.prompt_template.format(context=context, question=question)
+
         response = self.client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
+            messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
             max_tokens=1024,
         )
         answer = response.choices[0].message.content
 
-        # 5. 로그 기록
         if logger:
-            logger.log(
-                question=question,
-                answer=answer,
-                sources=sources
-            )
+            logger.log(question=question, answer=answer, sources=sources)
 
-        return {
-            'question': question,
-            'answer': answer,
-            'sources': sources
-        }
+        return {'question': question, 'answer': answer, 'sources': sources}
 
 
 # 테스트 코드
