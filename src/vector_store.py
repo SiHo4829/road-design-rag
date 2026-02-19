@@ -66,6 +66,12 @@ class VectorStore:
             if not page_text.strip():
                 continue
 
+            # 목차 페이지 스킵 (점선이 많으면 목차로 판단)
+            lines = page_text.split('\n')
+            dot_lines = sum(1 for l in lines if l.count('.') >= 5 or '·' * 3 in l)
+            if len(lines) > 3 and dot_lines / len(lines) > 0.3:
+                continue
+
             # 텍스트를 청크로 분할
             chunks = self.text_splitter.split_text(page_text)
 
