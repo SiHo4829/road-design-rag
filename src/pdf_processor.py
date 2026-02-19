@@ -84,50 +84,13 @@ class PDFProcessor:
         return "\n".join(result)
     
     def extract_text_from_page(self, page_num):
-        """
-        특정 페이지에서 텍스트 + 테이블 추출
-        텍스트와 테이블 영역 분리하여 중복 방지
-        """
+        """특정 페이지에서 텍스트 추출"""
         page = self.pdf.pages[page_num]
-        result = []
-        
         try:
-            # 1. 테이블 영역 먼저 찾기
-            tables = page.extract_tables(self.table_settings)
-            
-            # 테이블 없으면 텍스트만 추출
-            if not tables:
-                text = page.extract_text()
-                if text:
-                    result.append(text.strip())
-            else:
-                # 2. 테이블 bbox 찾기 (테이블 위치)
-                table_bboxes = []
-                for table_obj in page.find_tables(self.table_settings):
-                    table_bboxes.append(table_obj.bbox)
-                
-                # 3. 테이블 제외한 텍스트 추출
-                if table_bboxes:
-                    # 테이블 영역 제외하고 텍스트 추출
-                    non_table_text = page.extract_text()
-                    if non_table_text:
-                        result.append(non_table_text.strip())
-                
-                # 4. 테이블 텍스트로 변환하여 추가
-                result.append("\n[표 데이터]")
-                for table in tables:
-                    table_text = self.table_to_text(table)
-                    if table_text:
-                        result.append(table_text)
-                        result.append("")  # 테이블 구분
-        
-        except Exception as e:
-            # 오류 시 기본 텍스트 추출로 폴백
             text = page.extract_text()
-            if text:
-                result.append(text.strip())
-        
-        return "\n".join(result)
+            return text.strip() if text else ""
+        except Exception:
+            return ""
     
     def extract_all_text(self):
         """모든 페이지의 텍스트를 추출"""
