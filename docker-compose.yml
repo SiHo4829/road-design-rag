@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    ports:
+      - "80:8502"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./vectordb:/app/vectordb
+      - ./logs:/app/logs
+    restart: unless-stopped

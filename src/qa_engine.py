@@ -133,6 +133,7 @@ class QAEngine:
             sources.append({
                 'filename': metadata.get('source', ''),
                 'page': metadata.get('page', ''),
+                'article': metadata.get('article', ''),
                 'content': content[:200]
             })
 

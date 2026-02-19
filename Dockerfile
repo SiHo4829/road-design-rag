@@ -22,6 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 소스 코드 복사
 COPY src/ ./src/
 COPY run_api.py .
+COPY build_db.py .
 
 # 프론트엔드 빌드 결과물 복사
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist

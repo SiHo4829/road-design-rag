@@ -2,6 +2,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_upstage import UpstageEmbeddings
 from langchain_community.vectorstores import Chroma
 import os
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -58,22 +59,29 @@ class VectorStore:
         pdf_info = pdf_processor.get_pdf_info()
         
         chunks_with_metadata = []
-        
+        last_article = ""  # 마지막으로 발견된 조항 추적
+
         for page_num, page_text in all_texts:
             # 텍스트가 비어있으면 스킵
             if not page_text.strip():
                 continue
-            
+
             # 텍스트를 청크로 분할
             chunks = self.text_splitter.split_text(page_text)
-            
+
             # 각 청크에 메타데이터 + 컨텍스트 헤더 추가
             for chunk_idx, chunk in enumerate(chunks):
+                # 청크 내 조항 추출 (예: 제15조, 제3조의2)
+                articles = re.findall(r'제\s*\d+\s*조(?:의\s*\d+)?', chunk)
+                if articles:
+                    last_article = articles[-1].replace(" ", "")
+
                 metadata = {
                     'source': pdf_info['filename'],
                     'page': page_num,
                     'chunk': chunk_idx,
-                    'total_pages': pdf_info['total_pages']
+                    'total_pages': pdf_info['total_pages'],
+                    'article': last_article
                 }
                 # 컨텍스트 헤더: 임베딩 시 출처 정보를 포함하여 검색 정확도 향상
                 header = f"[{pdf_info['filename']} p.{page_num}] "

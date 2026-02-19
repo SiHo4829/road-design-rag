@@ -4,7 +4,11 @@
       "Bash(pip install:*)",
       "Bash(PYTHONIOENCODING=utf-8 python:*)",
       "Bash(curl:*)",
-      "Bash(npm run dev)"
+      "Bash(npm run dev)",
+      "Bash(npm run build:*)",
+      "Bash(rd:*)",
+      "Bash(venv/Scripts/pip install:*)",
+      "Bash(C:/Users/user/Desktop/road_design_rag/venv/Scripts/python.exe -m pip install:*)"
     ]
   }
 }
