@@ -19,7 +19,7 @@ const EXAMPLE_QUESTIONS = [
 
 export default function ChatBox({
   sessionId, selectedSources, dark, onToggleDark,
-  onMenuClick, onRenameSession,
+  onMenuClick, onRenameSession, onSessionActivity,
 }) {
   const [messages, setMessages] = useState(() => {
     try {
@@ -86,11 +86,13 @@ export default function ChatBox({
 
     if (overrideHistory === undefined) {
       setMessages(prev => [...prev, { role: "user", content: q }])
+      setShowScrollDown(false) // 내 메시지 전송 시 항상 스크롤 다운
       // 세션 이름 자동 설정 (첫 메시지)
       if (!sessionNamedRef.current && messages.length === 0) {
         sessionNamedRef.current = true
         onRenameSession?.(sessionId, q.slice(0, 18))
       }
+      onSessionActivity?.(sessionId)
     }
     setMessages(prev => [...prev, { role: "assistant", content: "", sources: [] }])
     setLoading(true)
@@ -206,8 +208,9 @@ export default function ChatBox({
 
   const exportChat = () => {
     const date = new Date().toISOString().slice(0, 10)
+    const exportable = messages.filter(m => !m.isError && m.content !== "_(중단됨)_" && m.content)
     const md = `# Roadspec 대화 기록 (${date})\n\n` +
-      messages.map(m =>
+      exportable.map(m =>
         m.role === "user"
           ? `**사용자:** ${m.content}`
           : `**Roadspec:** ${m.content}${m.sources?.length ? `\n\n> 출처: ${m.sources.map(s => `${s.filename} p.${s.page}`).join(", ")}` : ""}`

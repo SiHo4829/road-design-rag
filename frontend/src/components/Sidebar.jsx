@@ -203,7 +203,7 @@ export default function Sidebar({
 
         <ScrollArea className="flex-1">
           <div className="space-y-0.5 pr-2">
-            {sessions.map((session) => (
+            {[...sessions].sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)).map((session) => (
               <div
                 key={session.id}
                 className={cn(

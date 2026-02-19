@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import {
   Route, MessageSquare, TrendingUp, Users, Upload, FileText,
   Trash2, RefreshCw, Loader2, LogIn, AlertCircle, ArrowLeft, RotateCcw,
-  ThumbsUp, ThumbsDown
+  ThumbsUp, ThumbsDown, Zap
 } from "lucide-react"
 import { Button } from "./ui/button"
 import { Separator } from "./ui/separator"
@@ -266,10 +266,16 @@ export default function AdminPage() {
         {/* 통계 탭 */}
         {tab === "stats" && stats && (
           <div className="space-y-5">
-            <div className="grid grid-cols-3 gap-4 max-w-2xl">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl">
               <StatCard label="전체 질문 수" value={stats.total} sub="누적 총계" icon={MessageSquare} />
               <StatCard label="오늘 질문 수" value={stats.today} sub="오늘 기준" icon={TrendingUp} />
               <StatCard label="사용자 수" value={stats.sessions} sub="고유 세션" icon={Users} />
+              <StatCard
+                label="캐시 히트"
+                value={stats.cache_hits ?? 0}
+                sub={stats.total > 0 ? `${Math.round((stats.cache_hits ?? 0) / (stats.total + (stats.cache_hits ?? 0)) * 100)}% 히트율` : "캐시 미사용"}
+                icon={Zap}
+              />
             </div>
             <Button variant="ghost" size="sm" onClick={fetchStats} className="text-muted-foreground">
               <RotateCcw className="h-3 w-3 mr-1.5" />

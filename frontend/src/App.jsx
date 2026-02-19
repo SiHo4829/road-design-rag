@@ -45,6 +45,10 @@ function App() {
     setSessions(prev => prev.map(s => s.id === id ? { ...s, name } : s))
   }
 
+  const touchSession = (id) => {
+    setSessions(prev => prev.map(s => s.id === id ? { ...s, updatedAt: Date.now() } : s))
+  }
+
   const deleteSession = (id) => {
     localStorage.removeItem(`roadspec_messages_${id}`)
     setSessions(prev => {
@@ -107,6 +111,7 @@ function App() {
           onToggleDark={() => setDark(d => !d)}
           onMenuClick={() => setSidebarOpen(true)}
           onRenameSession={renameSession}
+          onSessionActivity={touchSession}
         />
       </div>
     </TooltipProvider>

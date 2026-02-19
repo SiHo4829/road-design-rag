@@ -38,6 +38,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "roadspec2024")
 
 # 응답 캐시 {hash: {answer, sources, time}}
 _cache = {}
+_cache_hits = 0
 CACHE_TTL = 3600  # 1시간
 
 # ─── 헬퍼 함수 ───────────────────────────────────────────────
@@ -180,6 +181,8 @@ async def chat_stream(request: Request, body: ChatRequest):
     if not body.history and not body.selected_sources:
         cached = _get_cached(body.question)
         if cached:
+            global _cache_hits
+            _cache_hits += 1
             async def cached_gen():
                 yield f"data: {json.dumps({'type': 'cache_hit'})}\n\n"
                 for token in cached["answer"]:
@@ -278,6 +281,7 @@ async def admin_stats(x_admin_password: str = Header(None)):
     _check_admin(x_admin_password)
     stats = Logger.get_global_stats()
     stats["cache_size"] = len(_cache)
+    stats["cache_hits"] = _cache_hits
     return stats
 
 @app.post("/api/admin/upload")

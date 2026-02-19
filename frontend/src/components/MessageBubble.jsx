@@ -141,7 +141,7 @@ export default function MessageBubble({ message, sessionId, prevQuestion, onRela
             </ReactMarkdown>
           </div>
 
-          {message.content && (
+          {message.content && !message.isError && (
             <div className="flex items-center gap-1 mt-1.5 ml-1 flex-wrap">
               {/* 캐시 뱃지 */}
               {message.fromCache && (
@@ -223,7 +223,7 @@ export default function MessageBubble({ message, sessionId, prevQuestion, onRela
           )}
 
           {/* 연관 질문 칩 */}
-          {message.relatedQuestions?.length > 0 && (
+          {!message.isError && message.relatedQuestions?.length > 0 && (
             <div className="mt-2.5 space-y-1">
               <p className="text-[10px] text-muted-foreground font-medium ml-0.5">관련 질문</p>
               {message.relatedQuestions.map((q, i) => (

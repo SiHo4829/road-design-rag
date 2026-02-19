@@ -129,7 +129,7 @@ class Logger:
         for session in sessions:
             session_dir = os.path.join(log_dir, session)
             for filename in os.listdir(session_dir):
-                if not filename.endswith(".json"):
+                if not (filename.startswith("log_") and filename.endswith(".json")):
                     continue
                 try:
                     with open(os.path.join(session_dir, filename), 'r', encoding='utf-8') as f:
@@ -156,9 +156,12 @@ class Logger:
             if not os.path.isdir(session_dir):
                 continue
             for filename in os.listdir(session_dir):
-                if not (filename.startswith("log_") and filename.endswith(".json")):
+                if filename.startswith("log_") and filename.endswith(".json"):
+                    date_str = filename.replace("log_", "").replace(".json", "")
+                elif filename.startswith("feedback_") and filename.endswith(".json"):
+                    date_str = filename.replace("feedback_", "").replace(".json", "")
+                else:
                     continue
-                date_str = filename.replace("log_", "").replace(".json", "")
                 if date_str < cutoff:
                     os.remove(os.path.join(session_dir, filename))
                     deleted += 1
