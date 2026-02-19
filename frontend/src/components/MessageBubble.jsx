@@ -44,7 +44,28 @@ const markdownComponents = {
   ),
 }
 
-export default function MessageBubble({ message, sessionId, prevQuestion, onRelatedClick }) {
+const highlightText = (text, query) => {
+  if (!query) return text
+  const lowerText = text.toLowerCase()
+  const lowerQuery = query.toLowerCase()
+  const parts = []
+  let last = 0
+  let pos = lowerText.indexOf(lowerQuery)
+  while (pos !== -1) {
+    parts.push(text.slice(last, pos))
+    parts.push(
+      <mark key={pos} className="bg-yellow-200 dark:bg-yellow-700/60 rounded px-0.5 text-inherit">
+        {text.slice(pos, pos + query.length)}
+      </mark>
+    )
+    last = pos + query.length
+    pos = lowerText.indexOf(lowerQuery, last)
+  }
+  parts.push(text.slice(last))
+  return parts
+}
+
+export default function MessageBubble({ message, sessionId, prevQuestion, onRelatedClick, highlighted, searchQuery }) {
   const isUser = message.role === "user"
   const [showSources, setShowSources] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -89,8 +110,11 @@ export default function MessageBubble({ message, sessionId, prevQuestion, onRela
     return (
       <div className="flex justify-end mb-5">
         <div className="max-w-2xl flex items-end gap-2.5">
-          <div className="bg-primary text-primary-foreground rounded-2xl rounded-br-sm px-4 py-3 text-sm leading-relaxed shadow-sm">
-            {message.content}
+          <div className={cn(
+            "bg-primary text-primary-foreground rounded-2xl rounded-br-sm px-4 py-3 text-sm leading-relaxed shadow-sm",
+            highlighted && "ring-2 ring-yellow-300 dark:ring-yellow-500"
+          )}>
+            {searchQuery ? highlightText(message.content, searchQuery) : message.content}
           </div>
           <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mb-0.5">
             <User className="h-3.5 w-3.5 text-primary" />
@@ -108,7 +132,10 @@ export default function MessageBubble({ message, sessionId, prevQuestion, onRela
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="bg-background border border-border rounded-2xl rounded-tl-sm px-4 py-3.5 text-sm text-foreground shadow-sm">
+          <div className={cn(
+            "bg-background border border-border rounded-2xl rounded-tl-sm px-4 py-3.5 text-sm text-foreground shadow-sm",
+            highlighted && "ring-2 ring-yellow-300 dark:ring-yellow-500 border-yellow-300 dark:border-yellow-500"
+          )}>
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
               {message.content}
             </ReactMarkdown>

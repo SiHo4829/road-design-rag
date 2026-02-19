@@ -1,5 +1,8 @@
-import { useState, useRef, useEffect } from "react"
-import { Route, MessageSquare, Send, RotateCcw, Plus, Bot, Moon, Sun, Download, Square, Menu } from "lucide-react"
+import { useState, useRef, useEffect, useCallback } from "react"
+import {
+  Route, MessageSquare, Send, RotateCcw, Plus, Bot,
+  Moon, Sun, Download, Square, Menu, Search, X, ChevronDown
+} from "lucide-react"
 import MessageBubble from "./MessageBubble"
 import { Button } from "./ui/button"
 import { Textarea } from "./ui/textarea"
@@ -14,7 +17,10 @@ const EXAMPLE_QUESTIONS = [
   "시거 기준은 어떻게 되나요?",
 ]
 
-export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark, onMenuClick, onNewSession }) {
+export default function ChatBox({
+  sessionId, selectedSources, dark, onToggleDark,
+  onMenuClick, onRenameSession,
+}) {
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem(`roadspec_messages_${sessionId}`)
@@ -23,19 +29,33 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
   })
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
+  const [showScrollDown, setShowScrollDown] = useState(false)
+
+  // 검색
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const searchInputRef = useRef(null)
+
   const bottomRef = useRef(null)
   const abortRef = useRef(null)
+  const scrollContainerRef = useRef(null)
+  const sessionNamedRef = useRef(false) // 세션 이름 자동 설정 여부
 
-  // 세션 변경 시 해당 세션 메시지 로드
+  // 세션 변경 시 메시지 로드
   useEffect(() => {
     try {
       const saved = localStorage.getItem(`roadspec_messages_${sessionId}`)
       setMessages(saved ? JSON.parse(saved) : [])
     } catch { setMessages([]) }
+    sessionNamedRef.current = false
+    setSearchQuery("")
+    setSearchOpen(false)
   }, [sessionId])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    if (!showScrollDown) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    }
   }, [messages])
 
   useEffect(() => {
@@ -43,6 +63,19 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
       localStorage.setItem(`roadspec_messages_${sessionId}`, JSON.stringify(messages))
     } catch {}
   }, [messages, sessionId])
+
+  // 검색창 열릴 때 포커스
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus()
+  }, [searchOpen])
+
+  // 스크롤 감지
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    setShowScrollDown(distFromBottom > 150)
+  }, [])
 
   const sendMessage = async (question, overrideHistory) => {
     const q = (question || input).trim()
@@ -53,6 +86,11 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
 
     if (overrideHistory === undefined) {
       setMessages(prev => [...prev, { role: "user", content: q }])
+      // 세션 이름 자동 설정 (첫 메시지)
+      if (!sessionNamedRef.current && messages.length === 0) {
+        sessionNamedRef.current = true
+        onRenameSession?.(sessionId, q.slice(0, 18))
+      }
     }
     setMessages(prev => [...prev, { role: "assistant", content: "", sources: [] }])
     setLoading(true)
@@ -121,7 +159,7 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
             } else if (parsed.type === "error") {
               setMessages(prev => {
                 const msgs = [...prev]
-                msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: "오류가 발생했습니다." }
+                msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: "오류가 발생했습니다.", isError: true }
                 return msgs
               })
             }
@@ -142,7 +180,7 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
       }
       setMessages(prev => {
         const msgs = [...prev]
-        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: "오류가 발생했습니다. 다시 시도해주세요." }
+        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: "오류가 발생했습니다. 다시 시도해주세요.", isError: true }
         return msgs
       })
     } finally {
@@ -174,7 +212,6 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
           ? `**사용자:** ${m.content}`
           : `**Roadspec:** ${m.content}${m.sources?.length ? `\n\n> 출처: ${m.sources.map(s => `${s.filename} p.${s.page}`).join(", ")}` : ""}`
       ).join("\n\n---\n\n")
-
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -184,20 +221,22 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
     URL.revokeObjectURL(url)
   }
 
-  const canRegenerate = !loading && messages.length > 0 && messages[messages.length - 1].role === "assistant"
+  const lastMsg = messages[messages.length - 1]
+  const canRegenerate = !loading && lastMsg?.role === "assistant" && !!lastMsg?.content && !lastMsg?.isError
+  const canRetry = !loading && lastMsg?.role === "assistant" && !!lastMsg?.isError
+
+  // 검색 필터
+  const searchLower = searchQuery.trim().toLowerCase()
+  const matchingIds = searchLower
+    ? new Set(messages.map((_, i) => i).filter(i => messages[i].content.toLowerCase().includes(searchLower)))
+    : null
 
   return (
-    <div className="flex-1 flex flex-col h-screen bg-background min-w-0">
+    <div className="flex-1 flex flex-col h-screen bg-background min-w-0 relative">
       {/* 헤더 */}
       <header className="px-4 md:px-6 py-3.5 bg-background border-b border-border flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2.5">
-          {/* 모바일 메뉴 버튼 */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 md:hidden text-muted-foreground"
-            onClick={onMenuClick}
-          >
+          <Button variant="ghost" size="icon" className="h-7 w-7 md:hidden text-muted-foreground" onClick={onMenuClick}>
             <Menu className="h-4 w-4" />
           </Button>
           <MessageSquare className="h-4 w-4 text-primary hidden md:block" />
@@ -210,24 +249,28 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
         </div>
 
         <div className="flex items-center gap-1">
-          {/* 다크 모드 토글 */}
+          {/* 검색 */}
+          {messages.length > 0 && (
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSearchOpen(v => !v)} title="대화 검색">
+              <Search className="h-4 w-4" />
+            </Button>
+          )}
+          {/* 다크 모드 */}
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onToggleDark}>
             {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
-
           {/* 내보내기 */}
           {messages.length > 0 && (
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={exportChat} title="대화 내보내기">
               <Download className="h-4 w-4" />
             </Button>
           )}
-
-          {/* 새 대화 */}
+          {/* 새 대화 (현재 세션 초기화) */}
           {messages.length > 0 && (
             <Button variant="ghost" size="sm" onClick={() => {
               setMessages([])
               localStorage.removeItem(`roadspec_messages_${sessionId}`)
-              onNewSession?.()
+              sessionNamedRef.current = false
             }}>
               <Plus className="h-3.5 w-3.5 mr-1" />
               새 대화
@@ -236,8 +279,36 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
         </div>
       </header>
 
+      {/* 검색 바 */}
+      {searchOpen && (
+        <div className="px-4 py-2 border-b border-border bg-background flex items-center gap-2 flex-shrink-0">
+          <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => e.key === "Escape" && (setSearchOpen(false), setSearchQuery(""))}
+            placeholder="대화 내 검색..."
+            className="flex-1 text-sm bg-transparent outline-none text-foreground placeholder:text-muted-foreground"
+          />
+          {searchQuery && (
+            <span className="text-[11px] text-muted-foreground flex-shrink-0">
+              {matchingIds?.size ?? 0}개 결과
+            </span>
+          )}
+          <button onClick={() => { setSearchOpen(false); setSearchQuery("") }} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* 메시지 영역 */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-4 md:px-6 py-6"
+      >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-8">
             <div className="flex flex-col items-center gap-4 text-center">
@@ -270,12 +341,11 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
         ) : (
           <>
             {messages.map((msg, i) => {
-              // 로딩 중인 빈 assistant 말풍선은 로딩 점으로 대체
               if (msg.role === "assistant" && msg.content === "" && loading && i === messages.length - 1) return null
-              // 이전 user 질문 찾기 (답변 평가용)
               const prevQuestion = msg.role === "assistant"
                 ? messages.slice(0, i).reverse().find(m => m.role === "user")?.content ?? ""
                 : ""
+              const highlighted = matchingIds ? matchingIds.has(i) : false
               return (
                 <MessageBubble
                   key={i}
@@ -283,6 +353,8 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
                   sessionId={sessionId}
                   prevQuestion={prevQuestion}
                   onRelatedClick={(q) => sendMessage(q)}
+                  highlighted={highlighted}
+                  searchQuery={searchLower}
                 />
               )
             })}
@@ -308,8 +380,26 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
         <div ref={bottomRef} />
       </div>
 
-      {/* 재생성 / 중단 버튼 */}
-      {(canRegenerate || loading) && (
+      {/* 스크롤 다운 버튼 */}
+      {showScrollDown && (
+        <button
+          onClick={() => {
+            bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+            setShowScrollDown(false)
+          }}
+          className={cn(
+            "absolute bottom-28 right-6 z-10",
+            "h-8 w-8 rounded-full bg-primary text-white shadow-lg",
+            "flex items-center justify-center",
+            "hover:bg-primary/90 transition-all"
+          )}
+        >
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      )}
+
+      {/* 재생성 / 중단 / 재시도 버튼 */}
+      {(canRegenerate || loading || canRetry) && (
         <div className="px-6 pb-2 flex justify-center gap-2">
           {loading && (
             <Button variant="outline" size="sm" onClick={() => abortRef.current?.abort()}>
@@ -321,6 +411,12 @@ export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark
             <Button variant="outline" size="sm" onClick={regenerate}>
               <RotateCcw className="h-3 w-3 mr-1.5" />
               재생성
+            </Button>
+          )}
+          {canRetry && (
+            <Button variant="outline" size="sm" onClick={regenerate}>
+              <RotateCcw className="h-3 w-3 mr-1.5" />
+              다시 시도
             </Button>
           )}
         </div>

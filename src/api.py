@@ -244,6 +244,33 @@ async def submit_feedback(body: FeedbackRequest):
     logger.log_feedback(body.question, body.rating)
     return {"message": "피드백 감사합니다"}
 
+@app.get("/api/admin/feedback")
+async def admin_feedback_stats(x_admin_password: str = Header(None)):
+    _check_admin(x_admin_password)
+    feedback_data = []
+    log_dir = "logs"
+    if os.path.exists(log_dir):
+        for session in os.listdir(log_dir):
+            session_dir = os.path.join(log_dir, session)
+            if not os.path.isdir(session_dir):
+                continue
+            for filename in os.listdir(session_dir):
+                if not (filename.startswith("feedback_") and filename.endswith(".json")):
+                    continue
+                try:
+                    with open(os.path.join(session_dir, filename), 'r', encoding='utf-8') as f:
+                        feedbacks = json.load(f)
+                    feedback_data.extend(feedbacks)
+                except Exception:
+                    pass
+    stats = {
+        "total": len(feedback_data),
+        "positive": sum(1 for f in feedback_data if f.get("rating") == 1),
+        "negative": sum(1 for f in feedback_data if f.get("rating") == -1),
+    }
+    recent = sorted(feedback_data, key=lambda x: x.get("timestamp", ""), reverse=True)[:50]
+    return {"feedbacks": recent, "stats": stats}
+
 # ─── 관리자 엔드포인트 ───────────────────────────────────────
 
 @app.get("/api/admin/stats")

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react"
 import {
   Route, MessageSquare, TrendingUp, Users, Upload, FileText,
-  Trash2, RefreshCw, Loader2, LogIn, AlertCircle, ArrowLeft, RotateCcw
+  Trash2, RefreshCw, Loader2, LogIn, AlertCircle, ArrowLeft, RotateCcw,
+  ThumbsUp, ThumbsDown
 } from "lucide-react"
 import { Button } from "./ui/button"
 import { Separator } from "./ui/separator"
@@ -50,6 +51,9 @@ export default function AdminPage() {
   const [logs, setLogs] = useState([])
   const [sessionDates, setSessionDates] = useState([])
 
+  const [feedbackStats, setFeedbackStats] = useState(null)
+  const [feedbacks, setFeedbacks] = useState([])
+
   const headers = { "X-Admin-Password": password, "Content-Type": "application/json" }
 
   const login = async () => {
@@ -68,6 +72,15 @@ export default function AdminPage() {
   const fetchStats = async () => {
     const res = await fetch(`${API_URL}/api/admin/stats`, { headers })
     setStats(await res.json())
+  }
+
+  const fetchFeedback = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/admin/feedback`, { headers })
+      const data = await res.json()
+      setFeedbackStats(data.stats)
+      setFeedbacks(data.feedbacks || [])
+    } catch {}
   }
 
   const fetchSessions = async () => {
@@ -102,6 +115,7 @@ export default function AdminPage() {
     if (tab === "stats") fetchStats()
     if (tab === "docs") fetchDocuments()
     if (tab === "logs") fetchSessions()
+    if (tab === "feedback") fetchFeedback()
   }, [tab, authed])
 
   const uploadPDF = async (e) => {
@@ -205,6 +219,7 @@ export default function AdminPage() {
     { id: "stats", label: "통계" },
     { id: "docs", label: "문서 관리" },
     { id: "logs", label: "대화 로그" },
+    { id: "feedback", label: "피드백" },
   ]
 
   return (
@@ -401,6 +416,79 @@ export default function AdminPage() {
 
             {logs.length === 0 && selectedDate && (
               <p className="text-sm text-muted-foreground">로그가 없습니다.</p>
+            )}
+          </div>
+        )}
+
+        {/* 피드백 탭 */}
+        {tab === "feedback" && (
+          <div className="space-y-5 max-w-2xl">
+            {/* 통계 카드 */}
+            {feedbackStats && (
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-card rounded-xl border border-border p-4 shadow-sm text-center">
+                  <p className="text-xs text-muted-foreground mb-1">전체</p>
+                  <p className="text-2xl font-bold text-foreground">{feedbackStats.total}</p>
+                </div>
+                <div className="bg-card rounded-xl border border-green-200 dark:border-green-900 p-4 shadow-sm text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <ThumbsUp className="h-3 w-3 text-green-500" />
+                    <p className="text-xs text-muted-foreground">긍정</p>
+                  </div>
+                  <p className="text-2xl font-bold text-green-600">{feedbackStats.positive}</p>
+                  {feedbackStats.total > 0 && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {Math.round(feedbackStats.positive / feedbackStats.total * 100)}%
+                    </p>
+                  )}
+                </div>
+                <div className="bg-card rounded-xl border border-red-200 dark:border-red-900 p-4 shadow-sm text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <ThumbsDown className="h-3 w-3 text-red-500" />
+                    <p className="text-xs text-muted-foreground">부정</p>
+                  </div>
+                  <p className="text-2xl font-bold text-red-500">{feedbackStats.negative}</p>
+                  {feedbackStats.total > 0 && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {Math.round(feedbackStats.negative / feedbackStats.total * 100)}%
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">최근 피드백 (최대 50건)</p>
+              <Button variant="ghost" size="sm" onClick={fetchFeedback} className="text-muted-foreground h-7">
+                <RotateCcw className="h-3 w-3 mr-1" />
+                새로고침
+              </Button>
+            </div>
+
+            {feedbacks.length > 0 ? (
+              <div className="space-y-2">
+                {feedbacks.map((fb, i) => (
+                  <div key={i} className="bg-card rounded-xl border border-border p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm text-foreground flex-1 leading-snug">{fb.question}</p>
+                      <div className={cn(
+                        "flex items-center gap-1 flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full",
+                        fb.rating === 1
+                          ? "bg-green-100 dark:bg-green-900/30 text-green-600"
+                          : "bg-red-100 dark:bg-red-900/30 text-red-500"
+                      )}>
+                        {fb.rating === 1
+                          ? <><ThumbsUp className="h-3 w-3" />좋아요</>
+                          : <><ThumbsDown className="h-3 w-3" />별로</>
+                        }
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1.5">{fb.timestamp?.slice(0, 16).replace("T", " ")}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">피드백 데이터가 없습니다.</p>
             )}
           </div>
         )}

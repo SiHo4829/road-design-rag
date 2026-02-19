@@ -41,6 +41,10 @@ function App() {
     localStorage.setItem("roadspec_session_id", id)
   }
 
+  const renameSession = (id, name) => {
+    setSessions(prev => prev.map(s => s.id === id ? { ...s, name } : s))
+  }
+
   const deleteSession = (id) => {
     localStorage.removeItem(`roadspec_messages_${id}`)
     setSessions(prev => {
@@ -63,16 +67,6 @@ function App() {
   // ─── 문서 필터 ───────────────────────────────────────────
   const [selectedSources, setSelectedSources] = useState([]) // 빈 배열 = 전체
 
-  const toggleSource = (doc) => {
-    setSelectedSources(prev => {
-      if (prev.includes(doc)) {
-        const next = prev.filter(d => d !== doc)
-        return next
-      }
-      return [...prev, doc]
-    })
-  }
-
   // ─── 모바일 사이드바 ─────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -93,8 +87,9 @@ function App() {
           }}
           onCreateSession={createSession}
           onDeleteSession={deleteSession}
+          onRenameSession={renameSession}
           selectedSources={selectedSources}
-          onToggleSource={toggleSource}
+          onSetSources={setSelectedSources}
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
@@ -111,7 +106,7 @@ function App() {
           dark={dark}
           onToggleDark={() => setDark(d => !d)}
           onMenuClick={() => setSidebarOpen(true)}
-          onNewSession={createSession}
+          onRenameSession={renameSession}
         />
       </div>
     </TooltipProvider>
