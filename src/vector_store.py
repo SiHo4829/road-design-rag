@@ -164,21 +164,26 @@ class VectorStore:
         self.vectorstore._collection.delete(where={"source": filename})
         print(f"✓ {filename} 청크 삭제 완료")
 
-    def search(self, query, k=3):
+    def search(self, query, k=3, filter_sources=None):
         """
         질의와 유사한 문서 검색
-        
+
         Args:
             query: 검색 질의
             k: 반환할 문서 개수
-        
+            filter_sources: 검색할 파일명 목록 (None이면 전체)
+
         Returns:
             list: 검색된 문서 리스트
         """
         if self.vectorstore is None:
             raise ValueError("벡터스토어가 초기화되지 않았습니다.")
-        
-        results = self.vectorstore.similarity_search_with_score(query, k=k)
+
+        kwargs = {}
+        if filter_sources:
+            kwargs["filter"] = {"source": {"$in": filter_sources}}
+
+        results = self.vectorstore.similarity_search_with_score(query, k=k, **kwargs)
         # 거리 → 유사도 변환 (0~1 사이로 정규화)
         normalized = []
         for doc, score in results:

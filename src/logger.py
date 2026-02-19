@@ -64,6 +64,24 @@ class Logger:
         self._save_logs()
         return log_entry
     
+    def log_feedback(self, question: str, rating: int):
+        """답변 평가 로그 기록 (feedback_{date}.json)"""
+        today = datetime.now().strftime("%Y-%m-%d")
+        fb_file = os.path.join(self.log_dir, f"feedback_{today}.json")
+        try:
+            with open(fb_file, 'r', encoding='utf-8') as f:
+                feedbacks = json.load(f)
+        except Exception:
+            feedbacks = []
+        feedbacks.append({
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'session_id': self.session_id,
+            'question': question,
+            'rating': rating,
+        })
+        with open(fb_file, 'w', encoding='utf-8') as f:
+            json.dump(feedbacks, f, ensure_ascii=False, indent=2)
+
     def get_logs(self, date=None):
         """
         로그 조회

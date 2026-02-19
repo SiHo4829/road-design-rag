@@ -149,6 +149,7 @@ class ChatRequest(BaseModel):
     question: str
     session_id: str
     history: list = []  # [{"role": "user"/"assistant", "content": "..."}]
+    selected_sources: list = []  # 빈 배열 = 전체 검색
 
     @field_validator('question')
     @classmethod
@@ -165,16 +166,22 @@ class ChatResponse(BaseModel):
     sources: list
     session_id: str
 
+class FeedbackRequest(BaseModel):
+    session_id: str
+    question: str
+    rating: int  # 1 = 좋아요, -1 = 싫어요
+
 # ─── 채팅 엔드포인트 ─────────────────────────────────────────
 
 @app.post("/api/chat/stream")
 @limiter.limit("20/minute")
 async def chat_stream(request: Request, body: ChatRequest):
-    # 캐시 확인 (히스토리 없을 때만)
-    if not body.history:
+    # 캐시 확인 (히스토리 없을 때만, 문서 필터 없을 때만)
+    if not body.history and not body.selected_sources:
         cached = _get_cached(body.question)
         if cached:
             async def cached_gen():
+                yield f"data: {json.dumps({'type': 'cache_hit'})}\n\n"
                 for token in cached["answer"]:
                     yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
                 yield f"data: {json.dumps({'type': 'sources', 'sources': cached['sources']})}\n\n"
@@ -187,8 +194,13 @@ async def chat_stream(request: Request, body: ChatRequest):
 
     # 검색은 스레드풀에서 실행 (BM25 CPU 블로킹 방지)
     loop = asyncio.get_event_loop()
+    filter_sources = body.selected_sources or None
     stream, sources = await loop.run_in_executor(
-        None, lambda: qa_engine.ask_stream(body.question, history=body.history)
+        None, lambda: qa_engine.ask_stream(
+            body.question,
+            history=body.history,
+            filter_sources=filter_sources
+        )
     )
 
     async def generate():
@@ -200,13 +212,20 @@ async def chat_stream(request: Request, body: ChatRequest):
                     full_answer += token
                     yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
-            if not body.history:
+            if not body.history and not body.selected_sources:
                 _set_cache(body.question, full_answer, sources)
 
             logger = Logger(session_id=body.session_id)
             logger.log(question=body.question, answer=full_answer, sources=sources)
 
             yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
+
+            # 연관 질문 추천 (히스토리·필터 없을 때만)
+            if not body.history and not body.selected_sources:
+                related = qa_engine.get_related_questions(body.question)
+                if related:
+                    yield f"data: {json.dumps({'type': 'related_questions', 'questions': related})}\n\n"
+
             yield "data: [DONE]\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
@@ -216,6 +235,14 @@ async def chat_stream(request: Request, body: ChatRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
+
+# ─── 피드백 엔드포인트 ───────────────────────────────────────
+
+@app.post("/api/feedback")
+async def submit_feedback(body: FeedbackRequest):
+    logger = Logger(session_id=body.session_id)
+    logger.log_feedback(body.question, body.rating)
+    return {"message": "피드백 감사합니다"}
 
 # ─── 관리자 엔드포인트 ───────────────────────────────────────
 

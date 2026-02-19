@@ -1,4 +1,5 @@
 import { FileText, ExternalLink } from "lucide-react"
+import { Tooltip } from "./ui/tooltip"
 import { cn } from "../lib/utils"
 
 const API_URL = import.meta.env.VITE_API_URL || ""
@@ -18,12 +19,14 @@ export default function SourceCard({ source, index }) {
           [{index}]
         </span>
         <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-        <div className="flex flex-col min-w-0 gap-0.5">
-          <span className="text-xs text-foreground truncate font-medium">{lawName}</span>
-          {source.article && (
-            <span className="text-[11px] text-primary font-medium">{source.article}</span>
-          )}
-        </div>
+        <Tooltip content={source.content || "내용 없음"}>
+          <div className="flex flex-col min-w-0 gap-0.5 cursor-default">
+            <span className="text-xs text-foreground truncate font-medium">{lawName}</span>
+            {source.article && (
+              <span className="text-[11px] text-primary font-medium">{source.article}</span>
+            )}
+          </div>
+        </Tooltip>
       </div>
 
       <button

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import { Route, MessageSquare, Send, RotateCcw, Plus, Bot } from "lucide-react"
+import { Route, MessageSquare, Send, RotateCcw, Plus, Bot, Moon, Sun, Download, Square, Menu } from "lucide-react"
 import MessageBubble from "./MessageBubble"
 import { Button } from "./ui/button"
 import { Textarea } from "./ui/textarea"
@@ -14,7 +14,7 @@ const EXAMPLE_QUESTIONS = [
   "시거 기준은 어떻게 되나요?",
 ]
 
-export default function ChatBox({ sessionId }) {
+export default function ChatBox({ sessionId, selectedSources, dark, onToggleDark, onMenuClick, onNewSession }) {
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem(`roadspec_messages_${sessionId}`)
@@ -24,6 +24,15 @@ export default function ChatBox({ sessionId }) {
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
+  const abortRef = useRef(null)
+
+  // 세션 변경 시 해당 세션 메시지 로드
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`roadspec_messages_${sessionId}`)
+      setMessages(saved ? JSON.parse(saved) : [])
+    } catch { setMessages([]) }
+  }, [sessionId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -48,11 +57,19 @@ export default function ChatBox({ sessionId }) {
     setMessages(prev => [...prev, { role: "assistant", content: "", sources: [] }])
     setLoading(true)
 
+    abortRef.current = new AbortController()
+
     try {
       const response = await fetch(`${API_URL}/api/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, session_id: sessionId, history })
+        body: JSON.stringify({
+          question: q,
+          session_id: sessionId,
+          history,
+          selected_sources: selectedSources,
+        }),
+        signal: abortRef.current.signal,
       })
 
       const reader = response.body.getReader()
@@ -89,6 +106,18 @@ export default function ChatBox({ sessionId }) {
                 msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], sources: parsed.sources }
                 return msgs
               })
+            } else if (parsed.type === "cache_hit") {
+              setMessages(prev => {
+                const msgs = [...prev]
+                msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], fromCache: true }
+                return msgs
+              })
+            } else if (parsed.type === "related_questions") {
+              setMessages(prev => {
+                const msgs = [...prev]
+                msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], relatedQuestions: parsed.questions }
+                return msgs
+              })
             } else if (parsed.type === "error") {
               setMessages(prev => {
                 const msgs = [...prev]
@@ -99,7 +128,18 @@ export default function ChatBox({ sessionId }) {
           } catch {}
         }
       }
-    } catch {
+    } catch (e) {
+      if (e.name === "AbortError") {
+        setMessages(prev => {
+          const msgs = [...prev]
+          const last = msgs[msgs.length - 1]
+          if (last?.role === "assistant" && !last.content) {
+            msgs[msgs.length - 1] = { ...last, content: "_(중단됨)_" }
+          }
+          return msgs
+        })
+        return
+      }
       setMessages(prev => {
         const msgs = [...prev]
         msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: "오류가 발생했습니다. 다시 시도해주세요." }
@@ -126,34 +166,78 @@ export default function ChatBox({ sessionId }) {
     }
   }
 
+  const exportChat = () => {
+    const date = new Date().toISOString().slice(0, 10)
+    const md = `# Roadspec 대화 기록 (${date})\n\n` +
+      messages.map(m =>
+        m.role === "user"
+          ? `**사용자:** ${m.content}`
+          : `**Roadspec:** ${m.content}${m.sources?.length ? `\n\n> 출처: ${m.sources.map(s => `${s.filename} p.${s.page}`).join(", ")}` : ""}`
+      ).join("\n\n---\n\n")
+
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `roadspec_${date}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const canRegenerate = !loading && messages.length > 0 && messages[messages.length - 1].role === "assistant"
 
   return (
     <div className="flex-1 flex flex-col h-screen bg-background min-w-0">
       {/* 헤더 */}
-      <header className="px-6 py-3.5 bg-background border-b border-border flex items-center justify-between flex-shrink-0">
+      <header className="px-4 md:px-6 py-3.5 bg-background border-b border-border flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2.5">
-          <MessageSquare className="h-4 w-4 text-primary" />
+          {/* 모바일 메뉴 버튼 */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 md:hidden text-muted-foreground"
+            onClick={onMenuClick}
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+          <MessageSquare className="h-4 w-4 text-primary hidden md:block" />
           <div>
             <h2 className="text-sm font-semibold text-foreground leading-tight">Roadspec</h2>
-            <p className="text-[11px] text-muted-foreground leading-tight">
+            <p className="text-[11px] text-muted-foreground leading-tight hidden md:block">
               도로설계 기준 문서를 기반으로 질문에 답변합니다
             </p>
           </div>
         </div>
-        {messages.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => {
-            setMessages([])
-            localStorage.removeItem(`roadspec_messages_${sessionId}`)
-          }}>
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            새 대화
+
+        <div className="flex items-center gap-1">
+          {/* 다크 모드 토글 */}
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onToggleDark}>
+            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
-        )}
+
+          {/* 내보내기 */}
+          {messages.length > 0 && (
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={exportChat} title="대화 내보내기">
+              <Download className="h-4 w-4" />
+            </Button>
+          )}
+
+          {/* 새 대화 */}
+          {messages.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => {
+              setMessages([])
+              localStorage.removeItem(`roadspec_messages_${sessionId}`)
+              onNewSession?.()
+            }}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              새 대화
+            </Button>
+          )}
+        </div>
       </header>
 
       {/* 메시지 영역 */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-8">
             <div className="flex flex-col items-center gap-4 text-center">
@@ -188,7 +272,19 @@ export default function ChatBox({ sessionId }) {
             {messages.map((msg, i) => {
               // 로딩 중인 빈 assistant 말풍선은 로딩 점으로 대체
               if (msg.role === "assistant" && msg.content === "" && loading && i === messages.length - 1) return null
-              return <MessageBubble key={i} message={msg} />
+              // 이전 user 질문 찾기 (답변 평가용)
+              const prevQuestion = msg.role === "assistant"
+                ? messages.slice(0, i).reverse().find(m => m.role === "user")?.content ?? ""
+                : ""
+              return (
+                <MessageBubble
+                  key={i}
+                  message={msg}
+                  sessionId={sessionId}
+                  prevQuestion={prevQuestion}
+                  onRelatedClick={(q) => sendMessage(q)}
+                />
+              )
             })}
 
             {loading && messages[messages.length - 1]?.content === "" && (
@@ -212,18 +308,26 @@ export default function ChatBox({ sessionId }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* 재생성 버튼 */}
-      {canRegenerate && (
-        <div className="px-6 pb-2 flex justify-center">
-          <Button variant="outline" size="sm" onClick={regenerate}>
-            <RotateCcw className="h-3 w-3 mr-1.5" />
-            재생성
-          </Button>
+      {/* 재생성 / 중단 버튼 */}
+      {(canRegenerate || loading) && (
+        <div className="px-6 pb-2 flex justify-center gap-2">
+          {loading && (
+            <Button variant="outline" size="sm" onClick={() => abortRef.current?.abort()}>
+              <Square className="h-3 w-3 mr-1.5" />
+              중단
+            </Button>
+          )}
+          {canRegenerate && (
+            <Button variant="outline" size="sm" onClick={regenerate}>
+              <RotateCcw className="h-3 w-3 mr-1.5" />
+              재생성
+            </Button>
+          )}
         </div>
       )}
 
       {/* 입력 영역 */}
-      <footer className="px-6 py-4 bg-background border-t border-border flex-shrink-0">
+      <footer className="px-4 md:px-6 py-4 bg-background border-t border-border flex-shrink-0">
         <div className="flex gap-2.5 items-end">
           <div className="flex-1 relative">
             <Textarea

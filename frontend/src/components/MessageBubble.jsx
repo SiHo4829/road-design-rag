@@ -1,10 +1,14 @@
 import { useState } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { Bot, User, Copy, Check, BookOpen, ChevronDown, ChevronUp } from "lucide-react"
+import { Bot, User, Copy, Check, BookOpen, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Zap } from "lucide-react"
 import SourceCard from "./SourceCard"
 import { Button } from "./ui/button"
+import { Badge } from "./ui/badge"
 import { Tooltip } from "./ui/tooltip"
+import { cn } from "../lib/utils"
+
+const API_URL = import.meta.env.VITE_API_URL || ""
 
 const markdownComponents = {
   p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
@@ -40,10 +44,11 @@ const markdownComponents = {
   ),
 }
 
-export default function MessageBubble({ message }) {
+export default function MessageBubble({ message, sessionId, prevQuestion, onRelatedClick }) {
   const isUser = message.role === "user"
   const [showSources, setShowSources] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [rated, setRated] = useState(null) // null | 1 | -1
   const hasSources = message.sources && message.sources.length > 0
 
   const handleCopy = () => {
@@ -66,6 +71,18 @@ export default function MessageBubble({ message }) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }
+  }
+
+  const handleRate = async (r) => {
+    if (rated || !prevQuestion) return
+    setRated(r)
+    try {
+      await fetch(`${API_URL}/api/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, question: prevQuestion, rating: r }),
+      })
+    } catch {}
   }
 
   if (isUser) {
@@ -98,7 +115,16 @@ export default function MessageBubble({ message }) {
           </div>
 
           {message.content && (
-            <div className="flex items-center gap-1 mt-1.5 ml-1">
+            <div className="flex items-center gap-1 mt-1.5 ml-1 flex-wrap">
+              {/* 캐시 뱃지 */}
+              {message.fromCache && (
+                <Badge variant="secondary" className="text-[10px] h-4 px-1.5 gap-0.5 mr-1">
+                  <Zap className="h-2.5 w-2.5" />
+                  캐시
+                </Badge>
+              )}
+
+              {/* 복사 버튼 */}
               <Tooltip content={copied ? "복사됨!" : "복사"}>
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
                   {copied
@@ -108,6 +134,41 @@ export default function MessageBubble({ message }) {
                 </Button>
               </Tooltip>
 
+              {/* 답변 평가 버튼 */}
+              {prevQuestion && (
+                <>
+                  <Tooltip content="도움이 됐어요">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => handleRate(1)}
+                      disabled={!!rated}
+                    >
+                      <ThumbsUp className={cn(
+                        "h-3 w-3",
+                        rated === 1 ? "text-green-500" : "text-muted-foreground"
+                      )} />
+                    </Button>
+                  </Tooltip>
+                  <Tooltip content="도움이 안 됐어요">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => handleRate(-1)}
+                      disabled={!!rated}
+                    >
+                      <ThumbsDown className={cn(
+                        "h-3 w-3",
+                        rated === -1 ? "text-red-500" : "text-muted-foreground"
+                      )} />
+                    </Button>
+                  </Tooltip>
+                </>
+              )}
+
+              {/* 출처 토글 */}
               {hasSources && (
                 <Button
                   variant="ghost"
@@ -130,6 +191,27 @@ export default function MessageBubble({ message }) {
             <div className="mt-2 space-y-1.5">
               {message.sources.map((source, i) => (
                 <SourceCard key={i} source={source} index={i + 1} />
+              ))}
+            </div>
+          )}
+
+          {/* 연관 질문 칩 */}
+          {message.relatedQuestions?.length > 0 && (
+            <div className="mt-2.5 space-y-1">
+              <p className="text-[10px] text-muted-foreground font-medium ml-0.5">관련 질문</p>
+              {message.relatedQuestions.map((q, i) => (
+                <button
+                  key={i}
+                  onClick={() => onRelatedClick?.(q)}
+                  className={cn(
+                    "block w-full text-left text-xs px-3 py-2 rounded-xl",
+                    "border border-border bg-background",
+                    "hover:border-primary hover:text-primary hover:bg-accent",
+                    "transition-colors duration-150 leading-relaxed"
+                  )}
+                >
+                  {q}
+                </button>
               ))}
             </div>
           )}

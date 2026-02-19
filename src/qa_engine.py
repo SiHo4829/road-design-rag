@@ -49,11 +49,11 @@ class QAEngine:
         tokenized = [self._tokenize(doc) for doc in self.all_docs]
         self.bm25 = BM25Okapi(tokenized)
 
-    def hybrid_search(self, question, k=15):
+    def hybrid_search(self, question, k=15, filter_sources=None):
         """벡터 검색 + BM25 검색 결합"""
 
         # 1. 벡터 검색
-        vector_results = self.vector_store.search(question, k=k)
+        vector_results = self.vector_store.search(question, k=k, filter_sources=filter_sources)
 
         # 벡터 결과 딕셔너리화
         combined = {}
@@ -79,6 +79,10 @@ class QAEngine:
 
         # 3. BM25 결과 합치기 (가중치 0.4)
         for idx in top_bm25_idx:
+            # 문서 필터: filter_sources가 지정된 경우 해당 파일만 포함
+            if filter_sources and self.all_metadatas[idx].get('source') not in filter_sources:
+                continue
+
             content = self.all_docs[idx]
             bm25_score = bm25_scores[idx] / max_bm25 if max_bm25 > 0 else 0
 
@@ -163,10 +167,27 @@ class QAEngine:
         print(f"쿼리 재작성: {question!r} → {rewritten!r}")
         return rewritten
 
-    def ask_stream(self, question, history=None):
+    def get_related_questions(self, question: str) -> list:
+        """연관 질문 3개 생성 (LLM 기반)"""
+        try:
+            response = self.client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content":
+                    f"다음 질문과 관련된 도로설계 기준 질문 3개를 줄바꿈으로 구분해 출력하세요. "
+                    f"번호나 기호 없이 질문만 출력하세요.\n\n질문: {question}"
+                }],
+                temperature=0.7,
+                max_tokens=150,
+            )
+            lines = response.choices[0].message.content.strip().split('\n')
+            return [l.strip() for l in lines if l.strip() and '?' in l][:3]
+        except Exception:
+            return []
+
+    def ask_stream(self, question, history=None, filter_sources=None):
         """스트리밍 답변 생성 (stream 객체, sources 반환)"""
         search_query = self._rewrite_query(question)
-        results = self.hybrid_search(search_query, k=15)
+        results = self.hybrid_search(search_query, k=15, filter_sources=filter_sources)
         context, sources = self._build_context(results)
         prompt = self.prompt_template.format(context=context, question=question)
         messages = self._build_messages(prompt, history)
