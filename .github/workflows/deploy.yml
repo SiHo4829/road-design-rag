@@ -17,5 +17,5 @@ jobs:
           script: |
             cd ~/road-design-rag
             git pull origin main
-            docker compose build --no-cache
+            docker compose build
             docker compose up -d --remove-orphans
