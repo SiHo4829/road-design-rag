@@ -112,6 +112,7 @@ function App() {
           onMenuClick={() => setSidebarOpen(true)}
           onRenameSession={renameSession}
           onSessionActivity={touchSession}
+          onCreateSession={createSession}
         />
       </div>
     </TooltipProvider>

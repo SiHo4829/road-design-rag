@@ -60,6 +60,8 @@ class VectorStore:
         
         chunks_with_metadata = []
         last_article = ""  # 마지막으로 발견된 조항 추적
+        last_chapter = ""  # 마지막으로 발견된 장 추적
+        last_section = ""  # 마지막으로 발견된 절 추적
 
         for page_num, page_text in all_texts:
             # 텍스트가 비어있으면 스킵
@@ -77,6 +79,16 @@ class VectorStore:
 
             # 각 청크에 메타데이터 + 컨텍스트 헤더 추가
             for chunk_idx, chunk in enumerate(chunks):
+                # 청크 내 장 추출 (예: 제3장)
+                chapters = re.findall(r'제\s*\d+\s*장', chunk)
+                if chapters:
+                    last_chapter = chapters[-1].replace(" ", "")
+
+                # 청크 내 절 추출 (예: 제2절)
+                sections = re.findall(r'제\s*\d+\s*절', chunk)
+                if sections:
+                    last_section = sections[-1].replace(" ", "")
+
                 # 청크 내 조항 추출 (예: 제15조, 제3조의2)
                 articles = re.findall(r'제\s*\d+\s*조(?:의\s*\d+)?', chunk)
                 if articles:
@@ -87,6 +99,8 @@ class VectorStore:
                     'page': page_num,
                     'chunk': chunk_idx,
                     'total_pages': pdf_info['total_pages'],
+                    'chapter': last_chapter,
+                    'section': last_section,
                     'article': last_article
                 }
                 # 컨텍스트 헤더: 임베딩 시 출처 정보를 포함하여 검색 정확도 향상

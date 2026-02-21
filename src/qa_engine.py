@@ -25,6 +25,7 @@ class QAEngine:
 
         self.prompt_template = """[참고 문서]를 기반으로 [질문]에 한국어로 답하세요.
 문서에 답이 없으면 "문서에서 찾을 수 없습니다"라고만 답하세요.
+수치를 언급할 때는 반드시 단위(m, km, %, km/h, 대/일 등)를 함께 표기하세요.
 
 [참고 문서]
 {context}
@@ -133,6 +134,8 @@ class QAEngine:
             sources.append({
                 'filename': metadata.get('source', ''),
                 'page': metadata.get('page', ''),
+                'chapter': metadata.get('chapter', ''),
+                'section': metadata.get('section', ''),
                 'article': metadata.get('article', ''),
                 'content': content[:200]
             })

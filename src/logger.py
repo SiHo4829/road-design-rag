@@ -64,6 +64,25 @@ class Logger:
         self._save_logs()
         return log_entry
     
+    def log_error(self, question: str, error: str, error_type: str = ""):
+        """오류 로그 기록 (errors_{date}.json)"""
+        today = datetime.now().strftime("%Y-%m-%d")
+        err_file = os.path.join(self.log_dir, f"errors_{today}.json")
+        try:
+            with open(err_file, 'r', encoding='utf-8') as f:
+                errors = json.load(f)
+        except Exception:
+            errors = []
+        errors.append({
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'session_id': self.session_id,
+            'question': question,
+            'error': error,
+            'error_type': error_type,
+        })
+        with open(err_file, 'w', encoding='utf-8') as f:
+            json.dump(errors, f, ensure_ascii=False, indent=2)
+
     def log_feedback(self, question: str, rating: int):
         """답변 평가 로그 기록 (feedback_{date}.json)"""
         today = datetime.now().strftime("%Y-%m-%d")
@@ -160,6 +179,8 @@ class Logger:
                     date_str = filename.replace("log_", "").replace(".json", "")
                 elif filename.startswith("feedback_") and filename.endswith(".json"):
                     date_str = filename.replace("feedback_", "").replace(".json", "")
+                elif filename.startswith("errors_") and filename.endswith(".json"):
+                    date_str = filename.replace("errors_", "").replace(".json", "")
                 else:
                     continue
                 if date_str < cutoff:

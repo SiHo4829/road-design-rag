@@ -231,6 +231,14 @@ async def chat_stream(request: Request, body: ChatRequest):
 
             yield "data: [DONE]\n\n"
         except Exception as e:
+            try:
+                Logger(session_id=body.session_id).log_error(
+                    question=body.question,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+            except Exception:
+                pass
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
     return StreamingResponse(
@@ -273,6 +281,28 @@ async def admin_feedback_stats(x_admin_password: str = Header(None)):
     }
     recent = sorted(feedback_data, key=lambda x: x.get("timestamp", ""), reverse=True)[:50]
     return {"feedbacks": recent, "stats": stats}
+
+@app.get("/api/admin/errors")
+async def admin_errors(x_admin_password: str = Header(None)):
+    _check_admin(x_admin_password)
+    error_data = []
+    log_dir = "logs"
+    if os.path.exists(log_dir):
+        for session in os.listdir(log_dir):
+            session_dir = os.path.join(log_dir, session)
+            if not os.path.isdir(session_dir):
+                continue
+            for filename in os.listdir(session_dir):
+                if not (filename.startswith("errors_") and filename.endswith(".json")):
+                    continue
+                try:
+                    with open(os.path.join(session_dir, filename), 'r', encoding='utf-8') as f:
+                        errors = json.load(f)
+                    error_data.extend(errors)
+                except Exception:
+                    pass
+    error_data.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+    return {"errors": error_data[:100], "total": len(error_data)}
 
 # ─── 관리자 엔드포인트 ───────────────────────────────────────
 

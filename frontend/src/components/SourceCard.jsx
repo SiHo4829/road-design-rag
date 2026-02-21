@@ -7,6 +7,7 @@ const API_URL = import.meta.env.VITE_API_URL || ""
 export default function SourceCard({ source, index }) {
   const pdfUrl = `${API_URL}/api/pdf/${encodeURIComponent(source.filename)}#page=${source.page}`
   const lawName = source.filename.replace(/\(.*?\)\.pdf$/i, "").replace(/\.pdf$/i, "").trim()
+  const citation = [source.chapter, source.section, source.article].filter(Boolean).join(" ")
 
   return (
     <div className={cn(
@@ -21,9 +22,9 @@ export default function SourceCard({ source, index }) {
         <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
         <Tooltip content={source.content || "내용 없음"}>
           <div className="flex flex-col min-w-0 gap-0.5 cursor-default">
-            <span className="text-xs text-foreground truncate font-medium">{lawName}</span>
-            {source.article && (
-              <span className="text-[11px] text-primary font-medium">{source.article}</span>
+            <span className="text-xs text-foreground truncate font-medium">출처: {lawName}</span>
+            {citation && (
+              <span className="text-[11px] text-primary font-medium">{citation}</span>
             )}
           </div>
         </Tooltip>

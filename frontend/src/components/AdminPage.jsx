@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import {
   Route, MessageSquare, TrendingUp, Users, Upload, FileText,
   Trash2, RefreshCw, Loader2, LogIn, AlertCircle, ArrowLeft, RotateCcw,
-  ThumbsUp, ThumbsDown, Zap
+  ThumbsUp, ThumbsDown, Zap, ShieldAlert
 } from "lucide-react"
 import { Button } from "./ui/button"
 import { Separator } from "./ui/separator"
@@ -54,6 +54,9 @@ export default function AdminPage() {
   const [feedbackStats, setFeedbackStats] = useState(null)
   const [feedbacks, setFeedbacks] = useState([])
 
+  const [errors, setErrors] = useState([])
+  const [errorTotal, setErrorTotal] = useState(0)
+
   const headers = { "X-Admin-Password": password, "Content-Type": "application/json" }
 
   const login = async () => {
@@ -80,6 +83,15 @@ export default function AdminPage() {
       const data = await res.json()
       setFeedbackStats(data.stats)
       setFeedbacks(data.feedbacks || [])
+    } catch {}
+  }
+
+  const fetchErrors = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/admin/errors`, { headers })
+      const data = await res.json()
+      setErrors(data.errors || [])
+      setErrorTotal(data.total || 0)
     } catch {}
   }
 
@@ -116,6 +128,7 @@ export default function AdminPage() {
     if (tab === "docs") fetchDocuments()
     if (tab === "logs") fetchSessions()
     if (tab === "feedback") fetchFeedback()
+    if (tab === "errors") fetchErrors()
   }, [tab, authed])
 
   const uploadPDF = async (e) => {
@@ -220,6 +233,7 @@ export default function AdminPage() {
     { id: "docs", label: "문서 관리" },
     { id: "logs", label: "대화 로그" },
     { id: "feedback", label: "피드백" },
+    { id: "errors", label: "오류 로그" },
   ]
 
   return (
@@ -422,6 +436,54 @@ export default function AdminPage() {
 
             {logs.length === 0 && selectedDate && (
               <p className="text-sm text-muted-foreground">로그가 없습니다.</p>
+            )}
+          </div>
+        )}
+
+        {/* 오류 로그 탭 */}
+        {tab === "errors" && (
+          <div className="space-y-4 max-w-2xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 text-destructive" />
+                <p className="text-sm font-semibold text-foreground">
+                  오류 로그
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    (총 {errorTotal}건, 최근 100건 표시)
+                  </span>
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={fetchErrors} className="text-muted-foreground h-7">
+                <RotateCcw className="h-3 w-3 mr-1" />
+                새로고침
+              </Button>
+            </div>
+
+            {errors.length === 0 ? (
+              <div className="bg-card rounded-xl border border-border p-8 text-center shadow-sm">
+                <ShieldAlert className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+                <p className="text-sm text-muted-foreground">기록된 오류가 없습니다.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {errors.map((err, i) => (
+                  <div key={i} className="bg-card rounded-xl border border-destructive/30 p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span className="text-[11px] font-semibold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">
+                        {err.error_type || "Error"}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground flex-shrink-0">{err.timestamp}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      <span className="font-medium text-foreground">질문:</span> {err.question}
+                    </p>
+                    <p className="text-xs text-destructive bg-destructive/5 rounded-lg px-3 py-2 font-mono break-all">
+                      {err.error}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1.5">세션: {err.session_id}</p>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}

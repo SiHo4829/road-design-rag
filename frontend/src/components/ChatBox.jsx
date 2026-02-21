@@ -19,7 +19,7 @@ const EXAMPLE_QUESTIONS = [
 
 export default function ChatBox({
   sessionId, selectedSources, dark, onToggleDark,
-  onMenuClick, onRenameSession, onSessionActivity,
+  onMenuClick, onRenameSession, onSessionActivity, onCreateSession,
 }) {
   const [messages, setMessages] = useState(() => {
     try {
@@ -268,13 +268,9 @@ export default function ChatBox({
               <Download className="h-4 w-4" />
             </Button>
           )}
-          {/* 새 대화 (현재 세션 초기화) */}
+          {/* 새 대화 */}
           {messages.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={() => {
-              setMessages([])
-              localStorage.removeItem(`roadspec_messages_${sessionId}`)
-              sessionNamedRef.current = false
-            }}>
+            <Button variant="ghost" size="sm" onClick={onCreateSession}>
               <Plus className="h-3.5 w-3.5 mr-1" />
               새 대화
             </Button>
