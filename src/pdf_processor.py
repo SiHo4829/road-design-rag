@@ -83,12 +83,40 @@ class PDFProcessor:
         
         return "\n".join(result)
     
+    def table_to_markdown(self, table):
+        """표를 마크다운 형식(| 열 | 열 |)으로 변환"""
+        if not table:
+            return ""
+        # 빈 행 제거
+        table = [row for row in table if any(cell for cell in row if cell)]
+        if not table:
+            return ""
+        cleaned = [[self.clean_cell(cell) for cell in row] for row in table]
+        header = cleaned[0]
+        col_count = len(header)
+        if col_count == 0:
+            return ""
+        header_line = "| " + " | ".join(header) + " |"
+        separator  = "| " + " | ".join(["---"] * col_count) + " |"
+        rows = []
+        for row in cleaned[1:]:
+            row = row[:col_count] + [""] * max(0, col_count - len(row))
+            rows.append("| " + " | ".join(row) + " |")
+        return "\n".join([header_line, separator] + rows)
+
     def extract_text_from_page(self, page_num):
-        """특정 페이지에서 텍스트 추출"""
+        """특정 페이지에서 텍스트 추출 (표는 마크다운 형식으로 추가)"""
         page = self.pdf.pages[page_num]
         try:
-            text = page.extract_text()
-            return text.strip() if text else ""
+            text = page.extract_text() or ""
+            text = text.strip()
+            # 표 추출 후 마크다운으로 변환하여 텍스트에 추가
+            tables = page.extract_tables(self.table_settings)
+            for table in tables:
+                md = self.table_to_markdown(table)
+                if md:
+                    text += "\n\n" + md
+            return text
         except Exception:
             return ""
     
