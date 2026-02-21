@@ -23,14 +23,15 @@ class QAEngine:
         self._build_bm25_index()
         print("✓ BM25 인덱스 구축 완료!")
 
-        self.prompt_template = """[참고 문서]를 기반으로 [질문]에 한국어로 답하세요.
+        self.prompt_template = """[참고 문서]를 기반으로 [질문]에 한국어로 상세하게 답하세요.
 문서에 답이 없으면 "문서에서 찾을 수 없습니다"라고만 답하세요.
 
 답변 시 다음 사항을 반드시 포함하세요:
-1. 수치는 단위(m, km, %, km/h, 대/일 등)를 반드시 함께 표기하세요.
-2. 해당 기준의 적용 조건(도로 종류, 설계속도, 지역 구분 등)이 있으면 명시하세요.
-3. 예외 또는 완화 규정이 문서에 있으면 반드시 함께 안내하세요.
-4. 참고 문서에 관련 표(| 로 시작하는 마크다운 표)가 있으면 해당 표를 그대로 답변에 포함하고, 표 바로 아래에 *출처: [문서명] [페이지]p* 형식으로 출처를 표기하세요.
+1. 관련된 모든 기준을 빠짐없이 상세하게 작성하고, 내용을 임의로 생략하지 마세요.
+2. 수치는 단위(m, km, %, km/h, 대/일 등)를 반드시 함께 표기하세요.
+3. 해당 기준의 적용 조건(도로 종류, 설계속도, 지역 구분 등)이 있으면 명시하세요.
+4. 예외 또는 완화 규정이 문서에 있으면 반드시 함께 안내하세요.
+5. 참고 문서에 관련 표(| 로 시작하는 마크다운 표)가 있으면 해당 표를 그대로 답변에 포함하세요. 표 1개당 출처는 반드시 1개만 표기하며, 표 바로 아래에 *출처: [문서명] [페이지]p* 형식으로 한 번만 표기하세요. 동일한 표에 출처를 중복 표기하지 마세요.
 
 [참고 문서]
 {context}
@@ -204,7 +205,7 @@ class QAEngine:
             model="llama-3.3-70b-versatile",
             messages=messages,
             temperature=0.1,
-            max_tokens=1024,
+            max_tokens=2048,
             stream=True,
         )
         return stream, sources
@@ -219,7 +220,7 @@ class QAEngine:
             model="llama-3.3-70b-versatile",
             messages=messages,
             temperature=0.1,
-            max_tokens=1024,
+            max_tokens=2048,
         )
         answer = response.choices[0].message.content
 
