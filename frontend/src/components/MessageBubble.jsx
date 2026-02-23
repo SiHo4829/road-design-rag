@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Bot, User, Copy, Check, BookOpen, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Zap } from "lucide-react"
 import SourceCard from "./SourceCard"
+import CalcWidget from "./CalcWidget"
 import { Button } from "./ui/button"
 import { Badge } from "./ui/badge"
 import { Tooltip } from "./ui/tooltip"
@@ -104,6 +105,20 @@ export default function MessageBubble({ message, sessionId, prevQuestion, onRela
         body: JSON.stringify({ session_id: sessionId, question: prevQuestion, rating: r }),
       })
     } catch {}
+  }
+
+  // 설계 파라미터 산출 위젯
+  if (message.type === "calc") {
+    return (
+      <div className="flex justify-start mb-5">
+        <div className="flex items-start gap-3 w-full max-w-2xl">
+          <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Bot className="h-3.5 w-3.5 text-white" />
+          </div>
+          <CalcWidget />
+        </div>
+      </div>
+    )
   }
 
   if (isUser) {

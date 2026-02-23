@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Header, UploadFile, File, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, Header, UploadFile, File, BackgroundTasks, Request, Query
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +15,7 @@ import time
 import hashlib
 import tarfile
 import glob
+import io
 from urllib.parse import quote
 from datetime import datetime
 
@@ -26,6 +27,7 @@ from logger import Logger
 from pdf_monitor import PDFMonitor, PDFWatcher
 from vector_store import VectorStore
 from pdf_processor import PDFProcessor, load_all_pdfs_from_folder
+from calc_engine import calculate_all, VALID_SPEEDS
 
 # ─── 전역 상태 ───────────────────────────────────────────────
 
@@ -389,6 +391,127 @@ async def admin_logs(x_admin_password: str = Header(None)):
         dates = logger.get_all_log_dates()
         result.append({"session_id": session, "dates": dates})
     return {"sessions": result}
+
+# ─── 설계 파라미터 산출 엔드포인트 ─────────────────────────────
+
+class CalcRequest(BaseModel):
+    road_grade:   str
+    design_speed: int
+    terrain:      str
+    region:       str
+    lane_count:   int
+
+@app.post("/api/calc")
+async def calc_params(body: CalcRequest):
+    if body.road_grade not in VALID_SPEEDS:
+        raise HTTPException(status_code=400, detail="유효하지 않은 도로 등급입니다.")
+    valid = VALID_SPEEDS[body.road_grade]
+    if body.design_speed not in valid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{body.road_grade}의 유효한 설계속도: {valid} km/h"
+        )
+    result = calculate_all(
+        body.road_grade, body.design_speed,
+        body.terrain, body.region, body.lane_count
+    )
+    return result
+
+@app.get("/api/calc/excel")
+async def calc_excel(
+    road_grade:   str = Query(...),
+    design_speed: int = Query(...),
+    terrain:      str = Query(...),
+    region:       str = Query(...),
+    lane_count:   int = Query(...),
+):
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    except ImportError:
+        raise HTTPException(status_code=500, detail="openpyxl이 설치되어 있지 않습니다.")
+
+    result = calculate_all(road_grade, design_speed, terrain, region, lane_count)
+
+    wb = openpyxl.Workbook()
+
+    # ── Sheet 1: 입력 조건 ───────────────────────────────────────
+    ws1 = wb.active
+    ws1.title = "입력 조건"
+    header_font  = Font(bold=True, color="FFFFFF")
+    header_fill  = PatternFill("solid", fgColor="2563EB")
+    center       = Alignment(horizontal="center", vertical="center")
+    thin_border  = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin"),
+    )
+
+    ws1.append(["항목", "선택값"])
+    ws1["A1"].font = ws1["B1"].font = header_font
+    ws1["A1"].fill = ws1["B1"].fill = header_fill
+    ws1["A1"].alignment = ws1["B1"].alignment = center
+
+    label_map = {
+        "road_grade":   "도로 등급",
+        "design_speed": "설계속도 (km/h)",
+        "terrain":      "지형 조건",
+        "region":       "지역 조건",
+        "lane_count":   "차로 수",
+    }
+    inputs = result["inputs"]
+    for key, label in label_map.items():
+        ws1.append([label, str(inputs[key])])
+
+    ws1.column_dimensions["A"].width = 20
+    ws1.column_dimensions["B"].width = 20
+    for row in ws1.iter_rows():
+        for cell in row:
+            cell.border = thin_border
+            if cell.row > 1:
+                cell.alignment = center
+
+    # ── Sheet 2: 산출 결과 ───────────────────────────────────────
+    ws2 = wb.create_sheet("산출 결과")
+    ws2.append(["구분", "항목", "기준값", "단위", "적용 조건", "출처"])
+    for col_letter in ["A", "B", "C", "D", "E", "F"]:
+        cell = ws2[f"{col_letter}1"]
+        cell.font  = header_font
+        cell.fill  = header_fill
+        cell.alignment = center
+
+    cat_fill = PatternFill("solid", fgColor="DBEAFE")  # 구분 행 배경
+    prev_cat = None
+    for p in result["params"]:
+        row = [p["category"], p["name"], p["value"], p["unit"], p["condition"], p["source"]]
+        ws2.append(row)
+        r = ws2.max_row
+        if p["category"] != prev_cat:
+            for col in range(1, 7):
+                ws2.cell(r, col).fill = cat_fill
+            prev_cat = p["category"]
+        for col in range(1, 7):
+            ws2.cell(r, col).border = thin_border
+            ws2.cell(r, col).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    ws2.column_dimensions["A"].width = 10
+    ws2.column_dimensions["B"].width = 26
+    ws2.column_dimensions["C"].width = 12
+    ws2.column_dimensions["D"].width = 8
+    ws2.column_dimensions["E"].width = 36
+    ws2.column_dimensions["F"].width = 22
+
+    # 엑셀 파일 → 메모리 버퍼로 직렬화
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"도로설계파라미터_{road_grade}_{design_speed}kmh.xlsx"
+    encoded  = quote(filename)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"}
+    )
 
 # ─── 일반 엔드포인트 ─────────────────────────────────────────
 

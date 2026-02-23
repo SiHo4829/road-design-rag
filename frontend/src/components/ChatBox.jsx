@@ -14,8 +14,11 @@ const EXAMPLE_QUESTIONS = [
   "설계속도란 무엇인가요?",
   "차로의 최소 폭 기준은?",
   "주간선도로의 종단경사 제한은?",
-  "시거 기준은 어떻게 되나요?",
+  "설계 파라미터 계산해줘",
 ]
+
+const CALC_KEYWORDS = ["파라미터 계산", "파라미터 산출", "설계 파라미터", "기준값 산출", "기준치 산출", "파라미터 뽑아", "수치 산출"]
+const isCalcIntent = (text) => CALC_KEYWORDS.some(k => text.includes(k))
 
 export default function ChatBox({
   sessionId, selectedSources, dark, onToggleDark,
@@ -94,6 +97,13 @@ export default function ChatBox({
       }
       onSessionActivity?.(sessionId)
     }
+
+    // 설계 파라미터 계산 의도 감지 → CalcWidget 렌더
+    if (isCalcIntent(q)) {
+      setMessages(prev => [...prev, { role: "assistant", type: "calc", content: "" }])
+      return
+    }
+
     setMessages(prev => [...prev, { role: "assistant", content: "", sources: [] }])
     setLoading(true)
 
