@@ -472,8 +472,8 @@ async def calc_excel(
 
     # ── Sheet 2: 산출 결과 ───────────────────────────────────────
     ws2 = wb.create_sheet("산출 결과")
-    ws2.append(["구분", "항목", "기준값", "단위", "적용 조건", "출처"])
-    for col_letter in ["A", "B", "C", "D", "E", "F"]:
+    ws2.append(["구분", "항목", "기준값", "단위", "적용 조건", "근거 조항", "산출 공식"])
+    for col_letter in ["A", "B", "C", "D", "E", "F", "G"]:
         cell = ws2[f"{col_letter}1"]
         cell.font  = header_font
         cell.fill  = header_fill
@@ -482,23 +482,27 @@ async def calc_excel(
     cat_fill = PatternFill("solid", fgColor="DBEAFE")  # 구분 행 배경
     prev_cat = None
     for p in result["params"]:
-        row = [p["category"], p["name"], p["value"], p["unit"], p["condition"], p["source"]]
+        row = [
+            p["category"], p["name"], p["value"], p["unit"],
+            p["condition"], p["source"], p.get("formula", ""),
+        ]
         ws2.append(row)
         r = ws2.max_row
         if p["category"] != prev_cat:
-            for col in range(1, 7):
+            for col in range(1, 8):
                 ws2.cell(r, col).fill = cat_fill
             prev_cat = p["category"]
-        for col in range(1, 7):
+        for col in range(1, 8):
             ws2.cell(r, col).border = thin_border
             ws2.cell(r, col).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     ws2.column_dimensions["A"].width = 10
-    ws2.column_dimensions["B"].width = 26
+    ws2.column_dimensions["B"].width = 24
     ws2.column_dimensions["C"].width = 12
     ws2.column_dimensions["D"].width = 8
-    ws2.column_dimensions["E"].width = 36
-    ws2.column_dimensions["F"].width = 22
+    ws2.column_dimensions["E"].width = 30
+    ws2.column_dimensions["F"].width = 26
+    ws2.column_dimensions["G"].width = 46
 
     # 엑셀 파일 → 메모리 버퍼로 직렬화
     buf = io.BytesIO()

@@ -164,7 +164,8 @@ export default function CalcWidget() {
                 <th className="px-3 py-2 text-left font-semibold border-b border-border">항목</th>
                 <th className="px-3 py-2 text-center font-semibold border-b border-border w-20">기준값</th>
                 <th className="px-3 py-2 text-center font-semibold border-b border-border w-10">단위</th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-border">적용 조건</th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-border">적용 조건 / 산출 공식</th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-border">근거 조항</th>
               </tr>
             </thead>
             <tbody>
@@ -190,7 +191,17 @@ export default function CalcWidget() {
                       {p.value}
                     </td>
                     <td className="px-3 py-2 text-center text-muted-foreground">{p.unit}</td>
-                    <td className="px-3 py-2 text-muted-foreground leading-relaxed">{p.condition}</td>
+                    <td className="px-3 py-2 text-muted-foreground leading-relaxed">
+                      <span>{p.condition}</span>
+                      {p.formula && (
+                        <span className="block mt-0.5 text-[10px] text-blue-500 dark:text-blue-400 font-mono leading-snug">
+                          {p.formula}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground text-[10px] leading-relaxed">
+                      {p.source}
+                    </td>
                   </tr>
                 ))
               )}
