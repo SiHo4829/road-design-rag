@@ -417,6 +417,111 @@ async def calc_params(body: CalcRequest):
     )
     return result
 
+# ── 검증 엔드포인트 ──────────────────────────────────────────
+
+_VALIDATE_LIMIT = {
+    "차로폭":                      "min",
+    "우측 길어깨폭":               "min",
+    "좌측 길어깨폭":               "min",
+    "중앙분리대폭 (최소)":         "min",
+    "노면 횡단경사":               "fixed",
+    "길어깨 횡단경사":             "fixed",
+    "최소 평면곡선반경":           "min",
+    "최대 편경사":                 "max",
+    "완화곡선 최소 길이":          "min",
+    "확폭량 (최소 반경 기준)":     "min",
+    "최대 종단경사":               "max",
+    "최소 종단경사":               "min",
+    "볼록형 종단곡선 K값":         "min",
+    "오목형 종단곡선 K값":         "min",
+    "정지시거":                    "min",
+    "앞지르기시거":                "min",
+}
+
+class ValidateRequest(BaseModel):
+    road_grade:    str
+    design_speed:  int
+    terrain:       str
+    region:        str
+    lane_count:    int
+    design_values: dict  # {항목명: float}
+
+@app.post("/api/calc/validate")
+async def validate_params(body: ValidateRequest):
+    result = calculate_all(
+        body.road_grade, body.design_speed,
+        body.terrain, body.region, body.lane_count
+    )
+
+    items = []
+    pass_cnt = fail_cnt = na_cnt = skip_cnt = 0
+
+    for p in result["params"]:
+        name     = p["name"]
+        standard = p["value"]
+        is_na    = (standard is None or standard == "해당 없음")
+        ltype    = _VALIDATE_LIMIT.get(name, "min")
+        dval     = body.design_values.get(name)
+
+        if is_na:
+            status  = "na"
+            message = "해당 없음"
+            na_cnt += 1
+        elif dval is None:
+            status  = "skip"
+            message = "미입력"
+            skip_cnt += 1
+        elif ltype == "fixed":
+            status  = "pass"
+            message = f"기준값 그대로 적용 ({standard} {p['unit']})"
+            pass_cnt += 1
+        elif ltype == "min":
+            if dval >= standard:
+                status  = "pass"
+                message = f"{dval} {p['unit']} ≥ {standard} {p['unit']}"
+                pass_cnt += 1
+            else:
+                status  = "fail"
+                message = (
+                    f"{dval} {p['unit']} < 기준 최솟값 {standard} {p['unit']}"
+                    f" — {p['source']}"
+                )
+                fail_cnt += 1
+        else:  # max
+            if dval <= standard:
+                status  = "pass"
+                message = f"{dval} {p['unit']} ≤ {standard} {p['unit']}"
+                pass_cnt += 1
+            else:
+                status  = "fail"
+                message = (
+                    f"{dval} {p['unit']} > 기준 최댓값 {standard} {p['unit']}"
+                    f" — {p['source']}"
+                )
+                fail_cnt += 1
+
+        items.append({
+            "name":       name,
+            "category":   p["category"],
+            "standard":   standard,
+            "unit":       p["unit"],
+            "design":     dval,
+            "limit_type": ltype,
+            "status":     status,
+            "message":    message,
+            "source":     p["source"],
+        })
+
+    return {
+        "items": items,
+        "summary": {
+            "pass": pass_cnt,
+            "fail": fail_cnt,
+            "na":   na_cnt,
+            "skip": skip_cnt,
+        },
+    }
+
 @app.get("/api/calc/excel")
 async def calc_excel(
     road_grade:   str = Query(...),

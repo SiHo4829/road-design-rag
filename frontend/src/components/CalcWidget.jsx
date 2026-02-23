@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Download, RefreshCw, ChevronRight } from "lucide-react"
+import { Download, RefreshCw, ChevronRight, ShieldCheck } from "lucide-react"
 import { cn } from "../lib/utils"
 
 const API_URL = import.meta.env.VITE_API_URL || ""
@@ -56,6 +56,12 @@ export default function CalcWidget() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  // ── 검증 상태 ──
+  const [showValidation, setShowValidation] = useState(false)
+  const [designValues, setDesignValues] = useState({})
+  const [validating, setValidating] = useState(false)
+  const [validation, setValidation] = useState(null)
+
   const currentStep = STEPS[step]
 
   const getOptions = (s) => {
@@ -106,6 +112,9 @@ export default function CalcWidget() {
     setInputs({})
     setResult(null)
     setError(null)
+    setShowValidation(false)
+    setDesignValues({})
+    setValidation(null)
   }
 
   const handleExcel = () => {
@@ -115,6 +124,32 @@ export default function CalcWidget() {
       road_grade, design_speed, terrain, region, lane_count,
     })
     window.open(`${API_URL}/api/calc/excel?${params}`, "_blank")
+  }
+
+  // ── 검증 헬퍼 ────────────────────────────────────────────────────────────
+  const getLimitLabel = (name) => {
+    if (["최대 편경사", "최대 종단경사"].includes(name)) return "≤"
+    if (["노면 횡단경사", "길어깨 횡단경사"].includes(name)) return "="
+    return "≥"
+  }
+
+  const handleValidate = async () => {
+    setValidating(true)
+    try {
+      const parsed = {}
+      for (const [k, v] of Object.entries(designValues)) {
+        const n = parseFloat(v)
+        if (!isNaN(n)) parsed[k] = n
+      }
+      const res = await fetch(`${API_URL}/api/calc/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...result.inputs, design_values: parsed }),
+      })
+      if (res.ok) setValidation(await res.json())
+    } finally {
+      setValidating(false)
+    }
   }
 
   // ── 결과 화면 ────────────────────────────────────────────────────────────
@@ -144,6 +179,18 @@ export default function CalcWidget() {
             >
               <Download className="h-3.5 w-3.5" />
               보고서 다운로드
+            </button>
+            <button
+              onClick={() => { setShowValidation(v => !v); setValidation(null) }}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                showValidation
+                  ? "bg-primary/20 text-primary hover:bg-primary/30"
+                  : "bg-accent text-foreground hover:bg-border"
+              )}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              기준 검증
             </button>
             <button
               onClick={handleReset}
@@ -208,6 +255,119 @@ export default function CalcWidget() {
             </tbody>
           </table>
         </div>
+
+        {/* ── 기준값 검증 패널 ── */}
+        {showValidation && (
+          <div className="border-t border-border">
+            {/* 검증 헤더 + 요약 */}
+            <div className="px-4 py-2 bg-muted/40 flex items-center justify-between">
+              <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                설계값 기준 검증
+              </p>
+              {validation && (
+                <div className="flex gap-3 text-xs">
+                  <span className="text-green-600 dark:text-green-400">✅ {validation.summary.pass}개 충족</span>
+                  {validation.summary.fail > 0 && (
+                    <span className="text-red-600 dark:text-red-400">❌ {validation.summary.fail}개 미달</span>
+                  )}
+                  {validation.summary.skip > 0 && (
+                    <span className="text-muted-foreground">⬜ {validation.summary.skip}개 미입력</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 입력 테이블 */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-muted/60 text-muted-foreground">
+                    <th className="px-3 py-2 text-left font-semibold border-b border-border">항목</th>
+                    <th className="px-3 py-2 text-center font-semibold border-b border-border w-20">기준값</th>
+                    <th className="px-3 py-2 text-center font-semibold border-b border-border w-10">단위</th>
+                    <th className="px-3 py-2 text-center font-semibold border-b border-border w-28">설계값 입력</th>
+                    <th className="px-3 py-2 text-center font-semibold border-b border-border w-16">판정</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.params
+                    .filter(p => p.value !== "해당 없음" && p.value !== null)
+                    .map((p, i) => {
+                      const vItem = validation?.items?.find(v => v.name === p.name)
+                      return (
+                        <tr
+                          key={i}
+                          className={cn(
+                            "border-b border-border/50 transition-colors",
+                            vItem?.status === "fail" && "bg-red-50/70 dark:bg-red-950/25",
+                            vItem?.status === "pass" && "bg-green-50/50 dark:bg-green-950/15",
+                          )}
+                        >
+                          <td className="px-3 py-1.5 text-foreground">{p.name}</td>
+                          <td className="px-3 py-1.5 text-center tabular-nums">
+                            <span className="text-muted-foreground text-[10px] mr-0.5">{getLimitLabel(p.name)}</span>
+                            <span className="font-semibold text-primary">{p.value}</span>
+                          </td>
+                          <td className="px-3 py-1.5 text-center text-muted-foreground">{p.unit}</td>
+                          <td className="px-3 py-1.5 text-center">
+                            <input
+                              type="number"
+                              value={designValues[p.name] ?? ""}
+                              onChange={e => setDesignValues(prev => ({ ...prev, [p.name]: e.target.value }))}
+                              placeholder="—"
+                              step="any"
+                              className="w-22 px-2 py-0.5 border border-border rounded text-center text-xs bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                          </td>
+                          <td className="px-3 py-1.5 text-center">
+                            {vItem ? (
+                              vItem.status === "pass" ? (
+                                <span className="text-green-600 dark:text-green-400 font-semibold">✅</span>
+                              ) : vItem.status === "fail" ? (
+                                <span
+                                  className="text-red-600 dark:text-red-400 font-semibold cursor-help"
+                                  title={vItem.message}
+                                >❌</span>
+                              ) : (
+                                <span className="text-muted-foreground text-[10px]">—</span>
+                              )
+                            ) : (
+                              <span className="text-muted-foreground text-[10px]">미입력</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* 미달 항목 상세 */}
+            {validation?.summary?.fail > 0 && (
+              <div className="mx-4 my-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
+                <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1.5">❌ 기준 미달 항목</p>
+                {validation.items.filter(v => v.status === "fail").map((v, i) => (
+                  <p key={i} className="text-xs text-red-600 dark:text-red-400 leading-relaxed">
+                    • <span className="font-medium">{v.name}</span>: {v.message}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {/* 검증 버튼 */}
+            <div className="px-4 py-3 border-t border-border flex justify-end">
+              <button
+                onClick={handleValidate}
+                disabled={validating}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" />
+                {validating ? "검증 중…" : "검증하기"}
+              </button>
+            </div>
+          </div>
+        )}
 
         <p className="px-4 py-2 text-[10px] text-muted-foreground border-t border-border">
           ※ 산출값은 국토교통부 도로설계기준 기반 최솟값(또는 최댓값)입니다. 현장 여건에 따라 검토 후 적용하세요.
