@@ -143,7 +143,7 @@ export default function CalcWidget() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
-              엑셀 다운로드
+              보고서 다운로드
             </button>
             <button
               onClick={handleReset}

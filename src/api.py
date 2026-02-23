@@ -431,70 +431,142 @@ async def calc_excel(
     except ImportError:
         raise HTTPException(status_code=500, detail="openpyxl이 설치되어 있지 않습니다.")
 
-    result = calculate_all(road_grade, design_speed, terrain, region, lane_count)
+    result    = calculate_all(road_grade, design_speed, terrain, region, lane_count)
+    today_str = datetime.now().strftime("%Y년 %m월 %d일")
+    inputs    = result["inputs"]
 
     wb = openpyxl.Workbook()
 
-    # ── Sheet 1: 입력 조건 ───────────────────────────────────────
-    ws1 = wb.active
-    ws1.title = "입력 조건"
-    header_font  = Font(bold=True, color="FFFFFF")
-    header_fill  = PatternFill("solid", fgColor="2563EB")
-    center       = Alignment(horizontal="center", vertical="center")
-    thin_border  = Border(
+    # ── 공통 스타일 ──────────────────────────────────────────────────────
+    DARK_BLUE  = "1E3A5F"
+    BLUE       = "2563EB"
+    LIGHT_BLUE = "DBEAFE"
+    BG_BLUE    = "EFF6FF"
+    GREEN      = "DCFCE7"
+    GRAY       = "F1F5F9"
+
+    hdr_font  = Font(bold=True, color="FFFFFF", size=10)
+    hdr_fill  = PatternFill("solid", fgColor=BLUE)
+    sec_fill  = PatternFill("solid", fgColor=LIGHT_BLUE)
+    cat_fill  = PatternFill("solid", fgColor=LIGHT_BLUE)
+    pass_fill = PatternFill("solid", fgColor=GREEN)
+    na_fill   = PatternFill("solid", fgColor=GRAY)
+    center    = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    left_va   = Alignment(horizontal="left",   vertical="center", wrap_text=True)
+    thin      = Border(
         left=Side(style="thin"), right=Side(style="thin"),
         top=Side(style="thin"), bottom=Side(style="thin"),
     )
 
-    ws1.append(["항목", "선택값"])
-    ws1["A1"].font = ws1["B1"].font = header_font
-    ws1["A1"].fill = ws1["B1"].fill = header_fill
-    ws1["A1"].alignment = ws1["B1"].alignment = center
+    def hdr_row(ws, row_num, num_cols):
+        for c in range(1, num_cols + 1):
+            cell = ws.cell(row_num, c)
+            cell.font = hdr_font; cell.fill = hdr_fill
+            cell.alignment = center; cell.border = thin
 
-    label_map = {
-        "road_grade":   "도로 등급",
-        "design_speed": "설계속도 (km/h)",
-        "terrain":      "지형 조건",
-        "region":       "지역 조건",
-        "lane_count":   "차로 수",
-    }
-    inputs = result["inputs"]
-    for key, label in label_map.items():
-        ws1.append([label, str(inputs[key])])
+    def bc(ws, row_num, col_start, col_end):
+        """border + center 일괄 적용"""
+        for c in range(col_start, col_end + 1):
+            cell = ws.cell(row_num, c)
+            cell.border = thin; cell.alignment = center
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Sheet 1: 프로젝트 개요
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ws1 = wb.active
+    ws1.title = "프로젝트 개요"
+
+    ws1.append(["도로 설계 파라미터 산출 보고서", "", ""])         # row 1
+    ws1.merge_cells("A1:C1")
+    ws1["A1"].font = Font(bold=True, color="FFFFFF", size=14)
+    ws1["A1"].fill = PatternFill("solid", fgColor=DARK_BLUE)
+    ws1["A1"].alignment = center
+    ws1.row_dimensions[1].height = 32
+
+    ws1.append(["도로의 구조·시설 기준에 관한 규칙 / 도로설계기준 기반 자동 산출", "", ""])  # row 2
+    ws1.merge_cells("A2:C2")
+    ws1["A2"].font = Font(size=9, italic=True, color="666666")
+    ws1["A2"].fill = PatternFill("solid", fgColor=BG_BLUE)
+    ws1["A2"].alignment = center
+    ws1.row_dimensions[2].height = 16
+
+    ws1.append(["", "", ""])                                        # row 3 (빈 행)
+
+    ws1.append(["■ 작성 정보", "", ""])                            # row 4
+    ws1.merge_cells("A4:C4")
+    ws1["A4"].font = Font(bold=True, size=11)
+    ws1["A4"].fill = sec_fill
+    ws1["A4"].alignment = left_va
+    ws1.row_dimensions[4].height = 20
+
+    ws1.append(["작성일", today_str, ""])                          # row 5
+    ws1.merge_cells("B5:C5")
+    ws1["A5"].font = Font(bold=True)
+    bc(ws1, 5, 1, 3)
+
+    ws1.append(["적용 기준", "도로의 구조·시설 기준에 관한 규칙 / 도로설계기준", ""])  # row 6
+    ws1.merge_cells("B6:C6")
+    ws1["A6"].font = Font(bold=True)
+    bc(ws1, 6, 1, 3)
+
+    ws1.append(["", "", ""])                                        # row 7
+
+    ws1.append(["■ 설계 조건 입력", "", ""])                       # row 8
+    ws1.merge_cells("A8:C8")
+    ws1["A8"].font = Font(bold=True, size=11)
+    ws1["A8"].fill = sec_fill
+    ws1["A8"].alignment = left_va
+    ws1.row_dimensions[8].height = 20
+
+    ws1.append(["항목", "선택값", "비고"])                         # row 9
+    hdr_row(ws1, 9, 3)
+
+    for label, val, note in [
+        ("도로 등급",  str(inputs["road_grade"]),        "고속도로·일반국도·지방도·시군도"),
+        ("설계속도",   f"{inputs['design_speed']} km/h", ""),
+        ("지형 조건",  str(inputs["terrain"]),           "평지·구릉지·산지"),
+        ("지역 조건",  str(inputs["region"]),            "지방지역·도시지역"),
+        ("차로 수",    f"{inputs['lane_count']}차로",    "전체 차로 수"),
+    ]:
+        ws1.append([label, val, note])
+        r = ws1.max_row
+        ws1.cell(r, 1).font = Font(bold=True)
+        bc(ws1, r, 1, 3)
+
+    ws1.append([""])
+    ws1.append(["※ 본 보고서는 참고용 자동 산출값입니다. 실제 설계 적용 시 전문가 검토가 필요합니다.", "", ""])
+    r = ws1.max_row
+    ws1.merge_cells(f"A{r}:C{r}")
+    ws1.cell(r, 1).font = Font(size=9, italic=True, color="888888")
+    ws1.cell(r, 1).alignment = left_va
 
     ws1.column_dimensions["A"].width = 20
-    ws1.column_dimensions["B"].width = 20
-    for row in ws1.iter_rows():
-        for cell in row:
-            cell.border = thin_border
-            if cell.row > 1:
-                cell.alignment = center
+    ws1.column_dimensions["B"].width = 30
+    ws1.column_dimensions["C"].width = 28
 
-    # ── Sheet 2: 산출 결과 ───────────────────────────────────────
-    ws2 = wb.create_sheet("산출 결과")
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Sheet 2: 설계 기준값 산출표
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ws2 = wb.create_sheet("설계 기준값 산출표")
     ws2.append(["구분", "항목", "기준값", "단위", "적용 조건", "근거 조항", "산출 공식"])
-    for col_letter in ["A", "B", "C", "D", "E", "F", "G"]:
-        cell = ws2[f"{col_letter}1"]
-        cell.font  = header_font
-        cell.fill  = header_fill
-        cell.alignment = center
+    hdr_row(ws2, 1, 7)
 
-    cat_fill = PatternFill("solid", fgColor="DBEAFE")  # 구분 행 배경
     prev_cat = None
     for p in result["params"]:
-        row = [
+        ws2.append([
             p["category"], p["name"], p["value"], p["unit"],
             p["condition"], p["source"], p.get("formula", ""),
-        ]
-        ws2.append(row)
+        ])
         r = ws2.max_row
-        if p["category"] != prev_cat:
-            for col in range(1, 8):
-                ws2.cell(r, col).fill = cat_fill
-            prev_cat = p["category"]
+        is_new_cat = (p["category"] != prev_cat)
         for col in range(1, 8):
-            ws2.cell(r, col).border = thin_border
-            ws2.cell(r, col).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell = ws2.cell(r, col)
+            cell.border    = thin
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            if is_new_cat:
+                cell.fill = cat_fill
+        if is_new_cat:
+            prev_cat = p["category"]
 
     ws2.column_dimensions["A"].width = 10
     ws2.column_dimensions["B"].width = 24
@@ -504,12 +576,81 @@ async def calc_excel(
     ws2.column_dimensions["F"].width = 26
     ws2.column_dimensions["G"].width = 46
 
-    # 엑셀 파일 → 메모리 버퍼로 직렬화
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Sheet 3: 기준 적합성 검토표
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ws3 = wb.create_sheet("기준 적합성 검토표")
+    ws3.append(["구분", "항목", "기준값", "단위", "설계 적용값", "적합 여부", "검토 기준"])
+    hdr_row(ws3, 1, 7)
+
+    LIMIT_TYPE = {
+        "차로폭":                      ("min", "설계값 ≥ 최솟값"),
+        "우측 길어깨폭":               ("min", "설계값 ≥ 최솟값"),
+        "좌측 길어깨폭":               ("min", "설계값 ≥ 최솟값"),
+        "중앙분리대폭 (최소)":         ("min", "설계값 ≥ 최솟값"),
+        "노면 횡단경사":               ("fixed", "기준값 그대로 적용"),
+        "길어깨 횡단경사":             ("fixed", "기준값 그대로 적용"),
+        "최소 평면곡선반경":           ("min", "설계값 ≥ 최솟값"),
+        "최대 편경사":                 ("max", "설계값 ≤ 최댓값"),
+        "완화곡선 최소 길이":          ("min", "설계값 ≥ 최솟값"),
+        "확폭량 (최소 반경 기준)":     ("min", "설계값 ≥ 최솟값"),
+        "최대 종단경사":               ("max", "설계값 ≤ 최댓값"),
+        "최소 종단경사":               ("min", "설계값 ≥ 최솟값"),
+        "볼록형 종단곡선 K값":         ("min", "설계값 ≥ 최솟값"),
+        "오목형 종단곡선 K값":         ("min", "설계값 ≥ 최솟값"),
+        "정지시거":                    ("min", "설계값 ≥ 최솟값"),
+        "앞지르기시거":                ("min", "설계값 ≥ 최솟값 (2차로 전용)"),
+    }
+
+    prev_cat3 = None
+    for p in result["params"]:
+        val   = p["value"]
+        name  = p["name"]
+        is_na = (val is None or val == "해당 없음")
+        _, check_desc = LIMIT_TYPE.get(name, ("min", "설계값 ≥ 최솟값"))
+
+        if is_na:
+            conform_str = "- 해당없음"
+            design_val  = "-"
+        else:
+            conform_str = "✅ 충족"
+            design_val  = val
+
+        ws3.append([p["category"], name, val, p["unit"], design_val, conform_str, check_desc])
+        r = ws3.max_row
+        is_new_cat = (p["category"] != prev_cat3)
+        for col in range(1, 8):
+            cell = ws3.cell(r, col)
+            cell.border    = thin
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            if col == 6:
+                cell.fill = pass_fill if not is_na else na_fill
+            elif is_new_cat:
+                cell.fill = cat_fill
+        if is_new_cat:
+            prev_cat3 = p["category"]
+
+    ws3.append([""])
+    ws3.append(["※ '설계 적용값' 열에 실제 설계값을 입력하고 기준값과 비교하여 충족 여부를 검토하세요.", "", "", "", "", "", ""])
+    r = ws3.max_row
+    ws3.merge_cells(f"A{r}:G{r}")
+    ws3.cell(r, 1).font      = Font(size=9, italic=True, color="888888")
+    ws3.cell(r, 1).alignment = left_va
+
+    ws3.column_dimensions["A"].width = 10
+    ws3.column_dimensions["B"].width = 24
+    ws3.column_dimensions["C"].width = 12
+    ws3.column_dimensions["D"].width = 8
+    ws3.column_dimensions["E"].width = 16
+    ws3.column_dimensions["F"].width = 14
+    ws3.column_dimensions["G"].width = 28
+
+    # ── 직렬화 & 반환 ────────────────────────────────────────────────────
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
 
-    filename = f"도로설계파라미터_{road_grade}_{design_speed}kmh.xlsx"
+    filename = f"도로설계보고서_{road_grade}_{design_speed}kmh.xlsx"
     encoded  = quote(filename)
     return StreamingResponse(
         buf,
