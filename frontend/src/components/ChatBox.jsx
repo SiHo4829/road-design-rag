@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import {
   Route, MessageSquare, Send, RotateCcw, Plus, Bot,
-  Moon, Sun, Download, Square, Menu, Search, X, ChevronDown
+  Moon, Sun, Download, Square, Menu, Search, X, ChevronDown, Calculator
 } from "lucide-react"
 import MessageBubble from "./MessageBubble"
 import { Button } from "./ui/button"
@@ -234,6 +234,22 @@ export default function ChatBox({
     URL.revokeObjectURL(url)
   }
 
+  const triggerCalc = () => {
+    if (loading) return
+    const q = "설계 파라미터 계산해줘"
+    if (!sessionNamedRef.current && messages.length === 0) {
+      sessionNamedRef.current = true
+      onRenameSession?.(sessionId, "파라미터 산출")
+    }
+    onSessionActivity?.(sessionId)
+    setMessages(prev => [
+      ...prev,
+      { role: "user", content: q },
+      { role: "assistant", type: "calc", content: "" },
+    ])
+    setShowScrollDown(false)
+  }
+
   const lastMsg = messages[messages.length - 1]
   const canRegenerate = !loading && lastMsg?.role === "assistant" && !!lastMsg?.content && !lastMsg?.isError
   const canRetry = !loading && lastMsg?.role === "assistant" && !!lastMsg?.isError
@@ -461,7 +477,22 @@ export default function ChatBox({
             전송
           </Button>
         </div>
-        <p className="text-[10px] text-muted-foreground mt-2 text-center">
+        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+          <span className="text-[10px] text-muted-foreground">빠른 실행:</span>
+          <button
+            onClick={triggerCalc}
+            disabled={loading}
+            className={cn(
+              "flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-colors",
+              "bg-accent border-border text-foreground hover:border-primary hover:text-primary",
+              "disabled:opacity-40"
+            )}
+          >
+            <Calculator className="h-3 w-3" />
+            파라미터 산출
+          </button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
           AI가 제공하는 정보는 참고용입니다. 중요 사항은 원문을 확인하세요.
         </p>
       </footer>
