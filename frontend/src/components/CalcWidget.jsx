@@ -1,8 +1,9 @@
 import { useState } from "react"
-import { Download, RefreshCw, ChevronRight, ShieldCheck } from "lucide-react"
+import { Download, RefreshCw, ChevronRight, ShieldCheck, BookmarkPlus, BarChart2, X } from "lucide-react"
 import { cn } from "../lib/utils"
 
 const API_URL = import.meta.env.VITE_API_URL || ""
+const ALT_LABELS = ["대안 A", "대안 B", "대안 C"]
 
 const STEPS = [
   {
@@ -62,6 +63,10 @@ export default function CalcWidget() {
   const [validating, setValidating] = useState(false)
   const [validation, setValidation] = useState(null)
 
+  // ── 대안 비교 상태 ──
+  const [savedAlts, setSavedAlts] = useState([])
+  const [compareMode, setCompareMode] = useState(false)
+
   const currentStep = STEPS[step]
 
   const getOptions = (s) => {
@@ -115,6 +120,7 @@ export default function CalcWidget() {
     setShowValidation(false)
     setDesignValues({})
     setValidation(null)
+    // savedAlts, compareMode 유지 (대안 비교는 유지)
   }
 
   const handleExcel = () => {
@@ -152,6 +158,190 @@ export default function CalcWidget() {
     }
   }
 
+  // ── 대안 저장/삭제 ───────────────────────────────────────────────────────
+  const handleSaveAlt = () => {
+    if (!result || savedAlts.length >= 3) return
+    const alreadySaved = savedAlts.some(
+      a => JSON.stringify(a.inputs) === JSON.stringify(result.inputs)
+    )
+    if (alreadySaved) return
+    setSavedAlts(prev => [
+      ...prev,
+      { label: ALT_LABELS[prev.length], inputs: result.inputs, result },
+    ])
+  }
+
+  const handleRemoveAlt = (idx) => {
+    setSavedAlts(prev => {
+      const next = prev.filter((_, i) => i !== idx).map((a, i) => ({ ...a, label: ALT_LABELS[i] }))
+      if (next.length < 2) setCompareMode(false)
+      return next
+    })
+  }
+
+  const isCurrentSaved = result
+    ? savedAlts.some(a => JSON.stringify(a.inputs) === JSON.stringify(result.inputs))
+    : false
+
+  // ── 저장된 대안 바 ───────────────────────────────────────────────────────
+  const renderSavedAltsBar = () => {
+    if (savedAlts.length === 0) return null
+    return (
+      <div className="border-t border-border px-4 py-2 bg-muted/30 flex items-center gap-2 flex-wrap">
+        <span className="text-[11px] text-muted-foreground font-medium">저장된 대안:</span>
+        {savedAlts.map((alt, i) => (
+          <span
+            key={i}
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-medium"
+          >
+            {alt.label}
+            <button
+              onClick={() => handleRemoveAlt(i)}
+              className="hover:text-red-500 transition-colors ml-0.5"
+              title={`${alt.label} 삭제`}
+            >
+              <X className="h-2.5 w-2.5" />
+            </button>
+          </span>
+        ))}
+        {savedAlts.length >= 2 && (
+          <button
+            onClick={() => setCompareMode(v => !v)}
+            className={cn(
+              "flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors",
+              compareMode
+                ? "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300"
+                : "bg-accent text-foreground hover:bg-border"
+            )}
+          >
+            <BarChart2 className="h-3 w-3" />
+            {compareMode ? "비교 종료" : "비교 보기"}
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  // ── 대안 비교 테이블 ─────────────────────────────────────────────────────
+  if (compareMode && savedAlts.length >= 2) {
+    const baseParams = savedAlts[0].result.params
+    const grouped = {}
+    for (const p of baseParams) {
+      if (!grouped[p.category]) grouped[p.category] = []
+      grouped[p.category].push(p)
+    }
+
+    return (
+      <div className="rounded-xl border border-border bg-background overflow-hidden text-sm w-full">
+        {/* 헤더 */}
+        <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-border px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-foreground flex items-center gap-1.5">
+              <BarChart2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              대안 비교
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {savedAlts.map(a =>
+                `${a.label}: ${a.inputs.road_grade} ${a.inputs.design_speed}km/h ${a.inputs.terrain}`
+              ).join(" | ")}
+            </p>
+          </div>
+          <button
+            onClick={() => setCompareMode(false)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-foreground text-xs font-medium hover:bg-border transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+            비교 종료
+          </button>
+        </div>
+
+        {/* 비교 테이블 */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-muted/60 text-muted-foreground">
+                <th className="px-3 py-2 text-left font-semibold border-b border-border w-14">구분</th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-border">항목</th>
+                <th className="px-3 py-2 text-center font-semibold border-b border-border w-10">단위</th>
+                {savedAlts.map(alt => (
+                  <th key={alt.label} className="px-3 py-2 text-center font-semibold border-b border-border w-20">
+                    {alt.label}
+                  </th>
+                ))}
+              </tr>
+              {/* 설계 조건 서브헤더 */}
+              <tr className="bg-muted/30">
+                <td className="px-3 py-1.5 border-b border-border text-[10px] text-muted-foreground font-medium" colSpan={3}>
+                  설계 조건
+                </td>
+                {savedAlts.map(alt => (
+                  <td
+                    key={alt.label}
+                    className="px-3 py-1.5 border-b border-border text-[10px] text-muted-foreground text-center leading-snug"
+                  >
+                    {alt.inputs.road_grade} · {alt.inputs.design_speed}km/h<br />
+                    {alt.inputs.terrain} · {alt.inputs.region}<br />
+                    {alt.inputs.lane_count}차로
+                  </td>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(grouped).map(([cat, params]) =>
+                params.map((p, i) => {
+                  const values = savedAlts.map(alt => {
+                    const found = alt.result.params.find(ap => ap.name === p.name)
+                    return found ? found.value : "—"
+                  })
+                  const allSame = values.every(v => v === values[0])
+                  return (
+                    <tr
+                      key={`${cat}-${i}`}
+                      className="border-b border-border/50 hover:bg-muted/30 transition-colors"
+                    >
+                      {i === 0 ? (
+                        <td
+                          rowSpan={params.length}
+                          className={cn(
+                            "px-3 py-2 text-center font-semibold align-middle border-r border-border",
+                            CATEGORY_COLOR[cat] ?? "bg-muted"
+                          )}
+                        >
+                          {cat}
+                        </td>
+                      ) : null}
+                      <td className="px-3 py-2 text-foreground">{p.name}</td>
+                      <td className="px-3 py-2 text-center text-muted-foreground">{p.unit}</td>
+                      {values.map((val, j) => (
+                        <td
+                          key={j}
+                          className={cn(
+                            "px-3 py-2 text-center font-semibold tabular-nums",
+                            allSame
+                              ? "text-primary"
+                              : "bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-400"
+                          )}
+                        >
+                          {val}
+                        </td>
+                      ))}
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="px-4 py-2 text-[10px] text-muted-foreground border-t border-border">
+          ※ 노란색 셀은 대안 간 값이 다른 항목입니다.
+        </p>
+
+        {renderSavedAltsBar()}
+      </div>
+    )
+  }
+
   // ── 결과 화면 ────────────────────────────────────────────────────────────
   if (result) {
     // 구분별로 그룹핑
@@ -164,7 +354,7 @@ export default function CalcWidget() {
     return (
       <div className="rounded-xl border border-border bg-background overflow-hidden text-sm w-full">
         {/* 헤더 */}
-        <div className="bg-primary/10 border-b border-border px-4 py-3 flex items-center justify-between">
+        <div className="bg-primary/10 border-b border-border px-4 py-3 flex items-center justify-between flex-wrap gap-2">
           <div>
             <p className="font-semibold text-foreground">설계 파라미터 산출 결과</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -172,7 +362,27 @@ export default function CalcWidget() {
               {result.inputs.terrain} · {result.inputs.region} · {result.inputs.lane_count}차로
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={handleSaveAlt}
+              disabled={isCurrentSaved || savedAlts.length >= 3}
+              title={
+                isCurrentSaved ? "이미 저장된 대안입니다"
+                : savedAlts.length >= 3 ? "최대 3개까지 저장 가능합니다"
+                : "현재 결과를 대안으로 저장"
+              }
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                isCurrentSaved
+                  ? "bg-muted text-muted-foreground cursor-default"
+                  : savedAlts.length >= 3
+                    ? "bg-muted text-muted-foreground opacity-50 cursor-not-allowed"
+                    : "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-950/60"
+              )}
+            >
+              <BookmarkPlus className="h-3.5 w-3.5" />
+              {isCurrentSaved ? "저장됨" : "대안 저장"}
+            </button>
             <button
               onClick={handleExcel}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors"
@@ -372,6 +582,8 @@ export default function CalcWidget() {
         <p className="px-4 py-2 text-[10px] text-muted-foreground border-t border-border">
           ※ 산출값은 국토교통부 도로설계기준 기반 최솟값(또는 최댓값)입니다. 현장 여건에 따라 검토 후 적용하세요.
         </p>
+
+        {renderSavedAltsBar()}
       </div>
     )
   }
@@ -427,6 +639,8 @@ export default function CalcWidget() {
           </>
         )}
       </div>
+
+      {renderSavedAltsBar()}
     </div>
   )
 }

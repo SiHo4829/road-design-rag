@@ -2,6 +2,10 @@
 도로설계기준 / 도로의 구조·시설 기준에 관한 규칙 기반
 설계 파라미터 자동 산출 엔진
 
+[기준값 자동 업데이트]
+- src/standards_config.json 파일을 편집하면 서버 재시작 없이 반영됩니다.
+- 파일 수정 시각(mtime)이 변경되면 calculate_all() 호출 시 자동 리로드합니다.
+
 [근거 법령]
 - 도로의 구조·시설 기준에 관한 규칙 (국토교통부령)
 - 도로설계기준 (국토교통부, 한국도로공사)
@@ -12,6 +16,80 @@
 - 완화곡선길이: L ≥ V·t_min / 3.6                 [t_min=3.0s]
 - 확폭량     : W ≈ l²/(2R) (대형차 l=7.0m, 기준표 적용)
 """
+import json
+import os
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 기준값 설정 파일 (mtime 감지 → 자동 리로드)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+_CFG_PATH  = os.path.join(os.path.dirname(__file__), "standards_config.json")
+_cfg_mtime = 0.0
+
+def _ik(d):
+    """JSON 문자열 키 → 정수 변환 (가능한 경우에만)"""
+    if not isinstance(d, dict):
+        return d
+    return {(int(k) if str(k).lstrip("-").isdigit() else k): _ik(v) for k, v in d.items()}
+
+def _load_cfg() -> dict:
+    try:
+        with open(_CFG_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _apply_cfg(cfg: dict):
+    """config 딕셔너리를 모듈 전역 테이블에 반영"""
+    global LANE_WIDTH, RIGHT_SHOULDER, LEFT_SHOULDER, MEDIAN_WIDTH, \
+           SIDE_FRICTION, MIN_CURVE_RADIUS, MAX_SUPERELEVATION, \
+           MIN_TRANSITION_LENGTH, MAX_GRADE, CONVEX_K, CONCAVE_K, \
+           STOPPING_SIGHT_DISTANCE, PASSING_SIGHT_DISTANCE
+
+    def _g(key, default):
+        raw = cfg.get(key)
+        if raw is None:
+            return default
+        return _ik(raw) if isinstance(raw, dict) else raw
+
+    LANE_WIDTH              = _g("LANE_WIDTH",              LANE_WIDTH)
+    RIGHT_SHOULDER          = _g("RIGHT_SHOULDER",          RIGHT_SHOULDER)
+    LEFT_SHOULDER           = _g("LEFT_SHOULDER",           LEFT_SHOULDER)
+    MEDIAN_WIDTH            = _g("MEDIAN_WIDTH",            MEDIAN_WIDTH)
+    SIDE_FRICTION           = _g("SIDE_FRICTION",           SIDE_FRICTION)
+    MIN_CURVE_RADIUS        = _g("MIN_CURVE_RADIUS",        MIN_CURVE_RADIUS)
+    MAX_SUPERELEVATION      = _g("MAX_SUPERELEVATION",      MAX_SUPERELEVATION)
+    MIN_TRANSITION_LENGTH   = _g("MIN_TRANSITION_LENGTH",   MIN_TRANSITION_LENGTH)
+    MAX_GRADE               = _g("MAX_GRADE",               MAX_GRADE)
+    CONVEX_K                = _g("CONVEX_K",                CONVEX_K)
+    CONCAVE_K               = _g("CONCAVE_K",               CONCAVE_K)
+    STOPPING_SIGHT_DISTANCE = _g("STOPPING_SIGHT_DISTANCE", STOPPING_SIGHT_DISTANCE)
+    PASSING_SIGHT_DISTANCE  = _g("PASSING_SIGHT_DISTANCE",  PASSING_SIGHT_DISTANCE)
+
+def reload_standards() -> dict:
+    """
+    standards_config.json을 강제로 다시 읽어 전역 테이블을 갱신합니다.
+    반환: config의 _meta 섹션 (버전, 수정일 등)
+    """
+    global _cfg_mtime
+    cfg = _load_cfg()
+    if cfg:
+        _apply_cfg(cfg)
+        try:
+            _cfg_mtime = os.path.getmtime(_CFG_PATH)
+        except Exception:
+            pass
+    return cfg.get("_meta", {})
+
+def _reload_if_changed():
+    """config 파일이 수정됐으면 자동 리로드 (mtime 비교)"""
+    global _cfg_mtime
+    try:
+        mtime = os.path.getmtime(_CFG_PATH)
+        if mtime > _cfg_mtime:
+            reload_standards()
+    except Exception:
+        pass
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 도로 등급 / 설계속도 유효 조합
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -121,6 +199,13 @@ STOPPING_SIGHT_DISTANCE = {120: 215, 100: 155, 80: 110, 60: 75, 40: 40}
 # 앞지르기시거 기준값 (m) — 규칙 제15조 / 도로설계기준 6.3.1 표 6-2 (2차로 도로)
 PASSING_SIGHT_DISTANCE = {120: None, 100: 540, 80: 400, 60: 280, 40: 200}
 
+# ── 모듈 로드 시 standards_config.json 적용 ──────────────────────────────
+_apply_cfg(_load_cfg())
+try:
+    _cfg_mtime = os.path.getmtime(_CFG_PATH)
+except Exception:
+    pass
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 공식 계산 함수
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -225,6 +310,7 @@ def calculate_all(road_grade: str, design_speed: int, terrain: str,
     region       : '지방지역' | '도시지역'
     lane_count   : int (차로 수)
     """
+    _reload_if_changed()   # config 파일 수정 시 자동 반영
     V = design_speed
     e_max = MAX_SUPERELEVATION[region]
     f_h   = SIDE_FRICTION.get(V, 0.12)

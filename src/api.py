@@ -27,7 +27,7 @@ from logger import Logger
 from pdf_monitor import PDFMonitor, PDFWatcher
 from vector_store import VectorStore
 from pdf_processor import PDFProcessor, load_all_pdfs_from_folder
-from calc_engine import calculate_all, VALID_SPEEDS
+from calc_engine import calculate_all, VALID_SPEEDS, reload_standards
 
 # ─── 전역 상태 ───────────────────────────────────────────────
 
@@ -370,6 +370,41 @@ async def admin_backup(x_admin_password: str = Header(None)):
     _check_admin(x_admin_password)
     _backup_vectordb()
     return {"message": "백업 완료"}
+
+@app.get("/api/admin/standards")
+async def admin_get_standards(x_admin_password: str = Header(None)):
+    """현재 적용 중인 기준값 설정 반환"""
+    _check_admin(x_admin_password)
+    cfg_path = os.path.join(os.path.dirname(__file__), "standards_config.json")
+    if not os.path.exists(cfg_path):
+        raise HTTPException(status_code=404, detail="standards_config.json 파일이 없습니다.")
+    with open(cfg_path, encoding="utf-8") as f:
+        return json.load(f)
+
+@app.put("/api/admin/standards")
+async def admin_put_standards(body: dict, x_admin_password: str = Header(None)):
+    """
+    기준값 설정 전체 교체 후 calc_engine 즉시 리로드.
+    body: standards_config.json 전체 JSON
+    """
+    _check_admin(x_admin_password)
+    cfg_path = os.path.join(os.path.dirname(__file__), "standards_config.json")
+    # _meta.updated_at 자동 갱신
+    if "_meta" not in body:
+        body["_meta"] = {}
+    body["_meta"]["updated_at"] = datetime.now().strftime("%Y-%m-%d")
+    body["_meta"]["updated_by"] = "admin"
+    with open(cfg_path, "w", encoding="utf-8") as f:
+        json.dump(body, f, ensure_ascii=False, indent=2)
+    meta = reload_standards()
+    return {"message": "기준값 업데이트 완료", "meta": meta}
+
+@app.post("/api/admin/standards/reload")
+async def admin_reload_standards(x_admin_password: str = Header(None)):
+    """standards_config.json을 강제로 다시 읽어 calc_engine에 반영"""
+    _check_admin(x_admin_password)
+    meta = reload_standards()
+    return {"message": "기준값 리로드 완료", "meta": meta}
 
 @app.post("/api/admin/cache/clear")
 async def admin_cache_clear(x_admin_password: str = Header(None)):
