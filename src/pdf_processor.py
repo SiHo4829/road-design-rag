@@ -1,6 +1,5 @@
 import pdfplumber
 import os
-import re
 
 class PDFProcessor:
     """PDF 파일을 읽고 텍스트를 추출하는 클래스"""
@@ -104,39 +103,6 @@ class PDFProcessor:
             row = row[:col_count] + [""] * max(0, col_count - len(row))
             rows.append("| " + " | ".join(row) + " |")
         return "\n".join([header_line, separator] + rows)
-
-    def extract_printed_page_num(self, page_num: int):
-        """페이지에 인쇄된 페이지 번호 추출 (0-based page_num).
-
-        한국 정부 문서는 일반적으로 페이지 하단 중앙에 숫자만 표기하거나
-        '- N -' 형식으로 표기합니다. PDF 파일 상의 페이지 순서와 다를 수 있습니다.
-        """
-        page = self.pdf.pages[page_num]
-        h = float(page.height)
-        w = float(page.width)
-
-        # 1차: 하단 15% 영역에서 숫자 패턴 탐색
-        bottom = page.crop((0, h * 0.85, w, h))
-        bottom_text = bottom.extract_text() or ""
-        for line in bottom_text.strip().split('\n'):
-            line = line.strip()
-            if re.match(r'^\d+$', line):
-                return int(line)
-            m = re.match(r'^[-─＿]+\s*(\d+)\s*[-─＿]+$', line)
-            if m:
-                return int(m.group(1))
-
-        # 2차 fallback: 전체 텍스트 마지막 3줄에서 탐색
-        full_text = page.extract_text() or ""
-        lines = [l.strip() for l in full_text.split('\n') if l.strip()]
-        for line in reversed(lines[-3:]):
-            if re.match(r'^\d+$', line):
-                return int(line)
-            m = re.match(r'^[-─＿]+\s*(\d+)\s*[-─＿]+$', line)
-            if m:
-                return int(m.group(1))
-
-        return None  # 인쇄된 페이지 번호를 찾을 수 없음
 
     def extract_text_from_page(self, page_num):
         """특정 페이지에서 텍스트 추출 (표는 마크다운 형식으로 추가)"""

@@ -5,7 +5,6 @@ from rank_bm25 import BM25Okapi
 from kiwipiepy import Kiwi
 import os
 from dotenv import load_dotenv
-from pdf_processor import PDFProcessor
 
 load_dotenv()
 
@@ -24,10 +23,6 @@ class QAEngine:
         self._build_bm25_index()
         print("✓ BM25 인덱스 구축 완료!")
 
-        # 인쇄된 페이지 번호 캐시 {filename: {pdf_page: printed_page}}
-        # 기존 인덱스 데이터에 printed_page 메타데이터가 없는 경우 PDF에서 직접 추출
-        self._printed_page_cache = {}
-
         self.prompt_template = """[참고 문서]를 기반으로 [질문]에 한국어로 상세하게 답하세요.
 문서에 답이 없으면 "문서에서 찾을 수 없습니다"라고만 답하세요.
 
@@ -43,24 +38,6 @@ class QAEngine:
 
 [질문]
 {question}"""
-
-    def _get_printed_page(self, filename: str, pdf_page: int) -> int:
-        """PDF 파일에서 인쇄된 페이지 번호 조회 (파일당 1회 캐시 구축)."""
-        if filename not in self._printed_page_cache:
-            cache = {}
-            try:
-                pdf_path = os.path.join(os.path.dirname(__file__), "data", filename)
-                proc = PDFProcessor(pdf_path)
-                for i in range(proc.total_pages):
-                    printed = proc.extract_printed_page_num(i)
-                    cache[i + 1] = printed if printed is not None else (i + 1)
-                proc.pdf.close()
-                print(f"✓ 인쇄 페이지 캐시 완료: {filename} ({len(cache)}p)")
-            except Exception as e:
-                print(f"⚠️ 인쇄 페이지 캐시 실패 ({filename}): {e}")
-            self._printed_page_cache[filename] = cache
-
-        return self._printed_page_cache[filename].get(pdf_page, pdf_page)
 
     def _tokenize(self, text):
         """한국어 형태소 분석 기반 토크나이징 (명사/동사/형용사만 추출)"""
@@ -160,15 +137,9 @@ class QAEngine:
             seen_contents.add(content_key)
 
             context += f"\n{content}\n"
-            pdf_page = metadata.get('page', 0)
-            # printed_page: 메타데이터에 있으면 사용, 없으면 PDF에서 직접 추출
-            printed = metadata.get('printed_page')
-            if printed is None:
-                printed = self._get_printed_page(metadata.get('source', ''), pdf_page)
             sources.append({
                 'filename': metadata.get('source', ''),
-                'page': pdf_page,
-                'printed_page': printed,
+                'page': metadata.get('page', ''),
                 'chapter': metadata.get('chapter', ''),
                 'section': metadata.get('section', ''),
                 'article': metadata.get('article', ''),

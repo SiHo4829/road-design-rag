@@ -94,11 +94,9 @@ class VectorStore:
                 if articles:
                     last_article = articles[-1].replace(" ", "")
 
-                printed = pdf_processor.extract_printed_page_num(page_num - 1)
                 metadata = {
                     'source': pdf_info['filename'],
                     'page': page_num,
-                    'printed_page': printed if printed is not None else page_num,
                     'chunk': chunk_idx,
                     'total_pages': pdf_info['total_pages'],
                     'chapter': last_chapter,
