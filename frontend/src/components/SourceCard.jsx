@@ -11,6 +11,9 @@ const isAndroid = /Android/i.test(navigator.userAgent)
 export default function SourceCard({ source, index }) {
   const [showPdf, setShowPdf] = useState(false)
 
+  // PDF 뷰어 이동은 실제 PDF 페이지 인덱스(source.page) 사용
+  // 버튼 표시는 문서에 인쇄된 페이지 번호(source.printed_page) 우선 사용
+  const displayPage = source.printed_page ?? source.page
   const pdfUrl = `${API_URL}/api/pdf/${encodeURIComponent(source.filename)}#page=${source.page}`
   const lawName = source.filename.replace(/\(.*?\)\.pdf$/i, "").replace(/\.pdf$/i, "").trim()
   const citation = [source.chapter, source.section, source.article].filter(Boolean).join(" ")
@@ -55,7 +58,7 @@ export default function SourceCard({ source, index }) {
           )}
         >
           <ExternalLink className="h-3 w-3" />
-          {source.page}p
+          {displayPage}p
         </button>
       </div>
 
