@@ -21,6 +21,8 @@ from datetime import datetime
 
 sys.path.append(os.path.dirname(__file__))
 
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+
 from contextlib import asynccontextmanager
 from qa_engine import QAEngine
 from logger import Logger
@@ -86,7 +88,7 @@ def _handle_new_pdfs(filenames):
 
     new_chunks = []
     for filename in filenames:
-        filepath = os.path.join("data", filename)
+        filepath = os.path.join(DATA_DIR, filename)
         if not os.path.exists(filepath):
             continue
         processor = PDFProcessor(filepath)
@@ -324,8 +326,8 @@ async def admin_upload(
     _check_admin(x_admin_password)
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="PDF 파일만 업로드 가능합니다.")
-    os.makedirs("data", exist_ok=True)
-    dest = os.path.join("data", file.filename)
+    os.makedirs(DATA_DIR, exist_ok=True)
+    dest = os.path.join(DATA_DIR, file.filename)
     content = await file.read()
     with open(dest, "wb") as f:
         f.write(content)
@@ -802,7 +804,7 @@ async def calc_excel(
 
 @app.get("/api/pdf/{filename}")
 async def get_pdf(filename: str):
-    pdf_path = os.path.join("data", filename)
+    pdf_path = os.path.join(DATA_DIR, filename)
     if not os.path.exists(pdf_path):
         raise HTTPException(status_code=404, detail=f"파일을 찾을 수 없습니다: {filename}")
     encoded_filename = quote(filename)
@@ -814,16 +816,15 @@ async def get_pdf(filename: str):
 
 @app.get("/api/documents")
 async def get_documents():
-    data_folder = "data"
-    if not os.path.exists(data_folder):
+    if not os.path.exists(DATA_DIR):
         return {"documents": []}
-    pdf_files = [f for f in os.listdir(data_folder) if f.lower().endswith('.pdf')]
+    pdf_files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith('.pdf')]
     return {"documents": pdf_files}
 
 @app.delete("/api/admin/documents/{filename}")
 async def admin_delete_document(filename: str, x_admin_password: str = Header(None)):
     _check_admin(x_admin_password)
-    pdf_path = os.path.join("data", filename)
+    pdf_path = os.path.join(DATA_DIR, filename)
     if not os.path.exists(pdf_path):
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
     os.remove(pdf_path)

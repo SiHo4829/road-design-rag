@@ -153,7 +153,9 @@ class QAEngine:
 
     def _build_messages(self, prompt, history=None):
         """LLM에 전달할 messages 구성 (히스토리 포함)"""
-        messages = []
+        messages = [
+            {"role": "system", "content": "You are a Korean road design standards expert assistant. You must always respond in Korean (한국어) only, regardless of the language of the input or context documents."}
+        ]
         # 최근 3쌍(6개)만 포함
         if history:
             for h in history[-6:]:
