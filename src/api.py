@@ -861,6 +861,11 @@ FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fronten
 if os.path.exists(FRONTEND_DIR):
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")), name="static")
 
+    @app.get("/pdf.worker.min.mjs")
+    async def serve_pdf_worker():
+        worker_path = os.path.join(FRONTEND_DIR, "pdf.worker.min.mjs")
+        return FileResponse(worker_path, media_type="application/javascript")
+
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
         index_path = os.path.join(FRONTEND_DIR, "index.html")
