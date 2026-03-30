@@ -19,6 +19,7 @@ export default function PdfViewerModal({ filename, initialPage = 1, onClose }) {
   const [currentPage, setCurrentPage] = useState(Number(initialPage) || 1)
   const [scale, setScale] = useState(1.2)
   const [error, setError] = useState(null)
+  const [errorMsg, setErrorMsg] = useState("")
   const pageRefs = useRef({})
   const pageVisibility = useRef({})
   const observerRef = useRef(null)
@@ -39,7 +40,7 @@ export default function PdfViewerModal({ filename, initialPage = 1, onClose }) {
         objectUrl = URL.createObjectURL(blob)
         setBlobUrl(objectUrl)
       })
-      .catch(() => setError(true))
+      .catch(e => { setError(true); setErrorMsg(`fetch 실패: ${e.message}`) })
 
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl)
@@ -134,6 +135,7 @@ export default function PdfViewerModal({ filename, initialPage = 1, onClose }) {
         {error ? (
           <div className="flex flex-col items-center gap-3 mt-20 text-muted-foreground text-sm">
             <p>PDF를 불러오지 못했습니다.</p>
+            {errorMsg && <p className="text-[11px] text-red-400 font-mono">{errorMsg}</p>}
             <a href={pdfUrl} download={filename} className="text-primary underline">파일 다운로드</a>
           </div>
         ) : !blobUrl ? (
@@ -144,7 +146,7 @@ export default function PdfViewerModal({ filename, initialPage = 1, onClose }) {
           <Document
             file={blobUrl}
             onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-            onLoadError={() => setError(true)}
+            onLoadError={e => { setError(true); setErrorMsg(`PDF 파싱 실패: ${e?.message}`) }}
           >
             {numPages && Array.from({ length: numPages }, (_, i) => i + 1).map(page => (
               <div
