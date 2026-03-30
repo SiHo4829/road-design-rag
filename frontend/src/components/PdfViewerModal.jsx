@@ -5,10 +5,11 @@ import "react-pdf/dist/Page/AnnotationLayer.css"
 import "react-pdf/dist/Page/TextLayer.css"
 import { X, ZoomIn, ZoomOut, Download } from "lucide-react"
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString()
+const isAndroid = /Android/i.test(navigator.userAgent)
+
+pdfjs.GlobalWorkerOptions.workerSrc = isAndroid
+  ? `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
+  : new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
 
 const API_URL = import.meta.env.VITE_API_URL || ""
 
