@@ -13,7 +13,7 @@ export default function PdfViewerModal({ filename, initialPage = 1, onClose }) {
   const [blobUrl, setBlobUrl] = useState(null)
   const [numPages, setNumPages] = useState(null)
   const [currentPage, setCurrentPage] = useState(Number(initialPage) || 1)
-  const [scale, setScale] = useState(1.2)
+  const [scale, setScale] = useState(0.8)
   const [error, setError] = useState(null)
   const [errorMsg, setErrorMsg] = useState("")
 
