@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { Document, Page, pdfjs } from "react-pdf"
 import "react-pdf/dist/Page/AnnotationLayer.css"
 import "react-pdf/dist/Page/TextLayer.css"
-import { X, ZoomIn, ZoomOut, Download } from "lucide-react"
+import { X, ZoomIn, ZoomOut, Download, ChevronLeft, ChevronRight } from "lucide-react"
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
 
@@ -16,10 +16,6 @@ export default function PdfViewerModal({ filename, initialPage = 1, onClose }) {
   const [scale, setScale] = useState(1.2)
   const [error, setError] = useState(null)
   const [errorMsg, setErrorMsg] = useState("")
-  const pageRefs = useRef({})
-  const pageVisibility = useRef({})
-  const observerRef = useRef(null)
-  const scrolledRef = useRef(false)
 
   const pdfUrl = `${API_URL}/api/pdf/${encodeURIComponent(filename)}`
   const lawName = filename.replace(/\(.*?\)\.pdf$/i, "").replace(/\.pdf$/i, "").trim()
@@ -43,44 +39,10 @@ export default function PdfViewerModal({ filename, initialPage = 1, onClose }) {
     }
   }, [pdfUrl])
 
-  // 초기 페이지로 스크롤 (최초 1회)
-  useEffect(() => {
-    if (!numPages || scrolledRef.current) return
-    scrolledRef.current = true
-    requestAnimationFrame(() => {
-      const el = pageRefs.current[Number(initialPage)]
-      if (el) el.scrollIntoView({ behavior: "instant" })
-    })
-  }, [numPages])
-
-  // 현재 보이는 페이지 추적
-  useEffect(() => {
-    if (!numPages) return
-    observerRef.current?.disconnect()
-
-    observerRef.current = new IntersectionObserver(
-      entries => {
-        entries.forEach(entry => {
-          const page = Number(entry.target.dataset.page)
-          if (page) pageVisibility.current[page] = entry.intersectionRatio
-        })
-        const visible = Object.entries(pageVisibility.current)
-          .filter(([, r]) => r > 0)
-          .sort(([, a], [, b]) => b - a)
-        if (visible.length > 0) setCurrentPage(Number(visible[0][0]))
-      },
-      { threshold: [0, 0.25, 0.5, 0.75, 1] }
-    )
-
-    Object.values(pageRefs.current).forEach(el => {
-      if (el) observerRef.current.observe(el)
-    })
-
-    return () => observerRef.current?.disconnect()
-  }, [numPages])
-
   const zoomIn = () => setScale(s => Math.min(2.5, +(s + 0.2).toFixed(1)))
   const zoomOut = () => setScale(s => Math.max(0.5, +(s - 0.2).toFixed(1)))
+  const prevPage = () => setCurrentPage(p => Math.max(1, p - 1))
+  const nextPage = () => setCurrentPage(p => Math.min(numPages, p + 1))
 
   const modal = (
     <div
@@ -93,10 +55,20 @@ export default function PdfViewerModal({ filename, initialPage = 1, onClose }) {
           {lawName}
         </span>
 
-        <span className="text-xs tabular-nums text-foreground flex-shrink-0 select-none min-w-[64px] text-center">
-          {currentPage} / {numPages ?? "…"}
-        </span>
+        {/* 페이지 네비게이션 */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button onClick={prevPage} disabled={currentPage <= 1} className="p-1.5 rounded-lg hover:bg-accent transition-colors disabled:opacity-30" aria-label="이전 페이지">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-xs tabular-nums text-foreground select-none min-w-[56px] text-center">
+            {currentPage} / {numPages ?? "…"}
+          </span>
+          <button onClick={nextPage} disabled={!numPages || currentPage >= numPages} className="p-1.5 rounded-lg hover:bg-accent transition-colors disabled:opacity-30" aria-label="다음 페이지">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
 
+        {/* 줌 */}
         <div className="flex items-center gap-1 flex-shrink-0">
           <button onClick={zoomOut} className="p-1.5 rounded-lg hover:bg-accent transition-colors" aria-label="축소">
             <ZoomOut className="h-4 w-4" />
@@ -126,48 +98,30 @@ export default function PdfViewerModal({ filename, initialPage = 1, onClose }) {
         </button>
       </div>
 
-      {/* PDF 스크롤 영역 */}
-      <div className="flex-1 overflow-auto bg-gray-200 dark:bg-gray-800">
+      {/* PDF 영역 - 한 페이지만 렌더링 */}
+      <div className="flex-1 overflow-auto bg-gray-200 dark:bg-gray-800 flex justify-center">
         {error ? (
           <div className="flex flex-col items-center gap-3 mt-20 text-muted-foreground text-sm">
             <p>PDF를 불러오지 못했습니다.</p>
-            {errorMsg && <p className="text-[11px] text-red-400 font-mono">{errorMsg}</p>}
+            {errorMsg && <p className="text-[11px] text-red-400 font-mono px-4 text-center">{errorMsg}</p>}
             <a href={pdfUrl} download={filename} className="text-primary underline">파일 다운로드</a>
           </div>
         ) : !blobUrl ? (
-          <div className="mt-20 text-sm text-muted-foreground animate-pulse text-center">
-            PDF 로딩 중…
-          </div>
+          <p className="mt-20 text-sm text-muted-foreground animate-pulse">PDF 로딩 중…</p>
         ) : (
           <Document
             file={blobUrl}
             onLoadSuccess={({ numPages }) => setNumPages(numPages)}
             onLoadError={e => { setError(true); setErrorMsg(`PDF 파싱 실패: ${e?.message}`) }}
+            loading={<p className="mt-20 text-sm text-muted-foreground animate-pulse">PDF 로딩 중…</p>}
           >
-            {numPages && Array.from({ length: numPages }, (_, i) => i + 1).map(page => (
-              <div
-                key={page}
-                ref={el => { pageRefs.current[page] = el }}
-                data-page={page}
-                className="flex justify-center py-2"
-              >
-                <Page
-                  pageNumber={page}
-                  scale={scale}
-                  renderTextLayer
-                  renderAnnotationLayer
-                  className="shadow-lg"
-                  loading={
-                    <div
-                      style={{ width: Math.round(595 * scale), height: Math.round(842 * scale) }}
-                      className="bg-white dark:bg-gray-700 flex items-center justify-center"
-                    >
-                      <span className="text-xs text-gray-400 animate-pulse">{page}p</span>
-                    </div>
-                  }
-                />
-              </div>
-            ))}
+            <Page
+              pageNumber={currentPage}
+              scale={scale}
+              renderTextLayer
+              renderAnnotationLayer
+              className="shadow-lg my-2"
+            />
           </Document>
         )}
       </div>
