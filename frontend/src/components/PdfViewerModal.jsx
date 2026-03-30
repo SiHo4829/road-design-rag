@@ -1,67 +1,15 @@
-import { useState, useRef, useEffect } from "react"
+import { useState } from "react"
 import { createPortal } from "react-dom"
-import { Document, Page, pdfjs } from "react-pdf"
-import "react-pdf/dist/Page/AnnotationLayer.css"
-import "react-pdf/dist/Page/TextLayer.css"
-import { X, ZoomIn, ZoomOut, Download } from "lucide-react"
+import { X, Download, RefreshCw } from "lucide-react"
 
-const isAndroid = /Android/i.test(navigator.userAgent)
+const API_URL = import.meta.env.VITE_API_URL || window.location.origin
 
-pdfjs.GlobalWorkerOptions.workerSrc = isAndroid
-  ? `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
-  : new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
+export default function PdfViewerModal({ filename, onClose }) {
+  const [key, setKey] = useState(0)
 
-const API_URL = import.meta.env.VITE_API_URL || ""
-
-export default function PdfViewerModal({ filename, initialPage = 1, onClose }) {
-  const [numPages, setNumPages] = useState(null)
-  const [currentPage, setCurrentPage] = useState(Number(initialPage) || 1)
-  const [scale, setScale] = useState(1.2)
-  const [error, setError] = useState(null)
-  const pageRefs = useRef({})
-  const pageVisibility = useRef({})
-  const observerRef = useRef(null)
-
-  const url = `${API_URL}/api/pdf/${encodeURIComponent(filename)}`
+  const pdfUrl = `${API_URL}/api/pdf/${encodeURIComponent(filename)}`
+  const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}&embedded=true`
   const lawName = filename.replace(/\(.*?\)\.pdf$/i, "").replace(/\.pdf$/i, "").trim()
-
-  // 초기 페이지로 스크롤
-  useEffect(() => {
-    if (!numPages) return
-    requestAnimationFrame(() => {
-      const el = pageRefs.current[Number(initialPage)]
-      if (el) el.scrollIntoView({ behavior: "instant" })
-    })
-  }, [numPages])
-
-  // 현재 보이는 페이지 추적
-  useEffect(() => {
-    if (!numPages) return
-    observerRef.current?.disconnect()
-
-    observerRef.current = new IntersectionObserver(
-      entries => {
-        entries.forEach(entry => {
-          const page = Number(entry.target.dataset.page)
-          if (page) pageVisibility.current[page] = entry.intersectionRatio
-        })
-        const visible = Object.entries(pageVisibility.current)
-          .filter(([, r]) => r > 0)
-          .sort(([, a], [, b]) => b - a)
-        if (visible.length > 0) setCurrentPage(Number(visible[0][0]))
-      },
-      { threshold: [0, 0.25, 0.5, 0.75, 1] }
-    )
-
-    Object.values(pageRefs.current).forEach(el => {
-      if (el) observerRef.current.observe(el)
-    })
-
-    return () => observerRef.current?.disconnect()
-  }, [numPages])
-
-  const zoomIn = () => setScale(s => Math.min(2.5, +(s + 0.2).toFixed(1)))
-  const zoomOut = () => setScale(s => Math.max(0.5, +(s - 0.2).toFixed(1)))
 
   const modal = (
     <div
@@ -74,84 +22,40 @@ export default function PdfViewerModal({ filename, initialPage = 1, onClose }) {
           {lawName}
         </span>
 
-        <span className="text-xs tabular-nums text-foreground flex-shrink-0 select-none min-w-[64px] text-center">
-          {currentPage} / {numPages ?? "…"}
-        </span>
-
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={zoomOut} className="p-1.5 rounded-lg hover:bg-accent transition-colors" aria-label="축소">
-            <ZoomOut className="h-4 w-4" />
+          <button
+            onClick={() => setKey(k => k + 1)}
+            className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+            title="새로고침"
+          >
+            <RefreshCw className="h-4 w-4" />
           </button>
-          <span className="text-[11px] tabular-nums text-muted-foreground w-9 text-center select-none">
-            {Math.round(scale * 100)}%
-          </span>
-          <button onClick={zoomIn} className="p-1.5 rounded-lg hover:bg-accent transition-colors" aria-label="확대">
-            <ZoomIn className="h-4 w-4" />
+          <a
+            href={pdfUrl}
+            download={filename}
+            className="p-1.5 rounded-lg hover:bg-accent transition-colors flex-shrink-0"
+            title="다운로드"
+          >
+            <Download className="h-4 w-4" />
+          </a>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-accent transition-colors flex-shrink-0"
+            aria-label="닫기"
+          >
+            <X className="h-4 w-4" />
           </button>
         </div>
-
-        <a
-          href={url}
-          download={filename}
-          className="p-1.5 rounded-lg hover:bg-accent transition-colors flex-shrink-0"
-          title="다운로드"
-        >
-          <Download className="h-4 w-4" />
-        </a>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-accent transition-colors flex-shrink-0"
-          aria-label="닫기"
-        >
-          <X className="h-4 w-4" />
-        </button>
       </div>
 
-      {/* PDF 스크롤 영역 */}
-      <div className="flex-1 overflow-auto bg-gray-200 dark:bg-gray-800">
-        {error ? (
-          <div className="flex flex-col items-center gap-3 mt-20 text-muted-foreground text-sm">
-            <p>PDF를 불러오지 못했습니다.</p>
-            <a href={url} download={filename} className="text-primary underline">파일 다운로드</a>
-          </div>
-        ) : (
-          <Document
-            file={url}
-            onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-            onLoadError={() => setError(true)}
-            loading={
-              <div className="mt-20 text-sm text-muted-foreground animate-pulse text-center">
-                PDF 로딩 중…
-              </div>
-            }
-          >
-            {numPages && Array.from({ length: numPages }, (_, i) => i + 1).map(page => (
-              <div
-                key={page}
-                ref={el => { pageRefs.current[page] = el }}
-                data-page={page}
-                className="flex justify-center py-2"
-              >
-                <Page
-                  pageNumber={page}
-                  scale={scale}
-                  renderTextLayer
-                  renderAnnotationLayer
-                  className="shadow-lg"
-                  loading={
-                    <div
-                      style={{ width: Math.round(595 * scale), height: Math.round(842 * scale) }}
-                      className="bg-white dark:bg-gray-700 flex items-center justify-center"
-                    >
-                      <span className="text-xs text-gray-400 animate-pulse">{page}p</span>
-                    </div>
-                  }
-                />
-              </div>
-            ))}
-          </Document>
-        )}
-      </div>
+      {/* Google Docs Viewer iframe */}
+      <iframe
+        key={key}
+        src={viewerUrl}
+        className="flex-1 w-full border-0"
+        title={lawName}
+        allow="autoplay"
+      />
     </div>
   )
 
